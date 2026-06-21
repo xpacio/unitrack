@@ -3,6 +3,7 @@ import { ItemForm } from './components/itemForm.js';
 import { TaskView } from './views/taskView.js';
 import { NoteView } from './views/noteView.js';
 import { TimelineView } from './views/timelineView.js';
+import { FinanzaView } from './views/finanzaView.js';
 
 const store = new Store();
 
@@ -19,6 +20,7 @@ function init() {
   views.tasks = new TaskView(store, form, showTagResults);
   views.notes = new NoteView(store, form, showTagResults);
   views.timeline = new TimelineView(store, form, showTagResults);
+  views.finanzas = new FinanzaView(store, form, showTagResults);
 
   currentView = views.tasks;
 
@@ -31,7 +33,8 @@ function init() {
 
   document.getElementById('btn-add').addEventListener('click', () => {
     const view = getActiveView();
-    form.currentType = view === 'notes' ? 'note' : view === 'timeline' ? 'event' : 'task';
+    const typeMap = { tasks: 'task', notes: 'note', timeline: 'event', finanzas: 'gasto' };
+    form.currentType = typeMap[view] || 'task';
     form.parentId = null;
     form.open(null);
   });

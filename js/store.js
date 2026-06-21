@@ -1,15 +1,20 @@
 export function createItem(data = {}) {
+  const type = data.type || 'task';
   return {
     id: crypto.randomUUID?.() ?? Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-    type: data.type || 'task',
+    type,
     title: data.title || '',
     content: data.content || '',
     parent_id: data.parent_id || null,
     tags: data.tags || [],
-    priority: data.priority ?? (data.type === 'note' ? null : 2),
+    priority: data.priority ?? (type === 'note' ? null : type === 'ahorro' ? null : 2),
     fecha_inicio: data.fecha_inicio || '',
     fecha_fin: data.fecha_fin || '',
-    estado: data.estado || (data.type === 'note' ? null : 'pendiente'),
+    estado: data.estado || (type === 'note' ? null : type === 'suscripcion' ? 'activa' : 'pendiente'),
+    monto: data.monto ?? 0,
+    periodicidad: data.periodicidad || null,
+    meta: data.meta ?? 0,
+    acumulado: data.acumulado ?? 0,
     created: Date.now(),
     updated: Date.now(),
   };
@@ -206,7 +211,7 @@ export class Store {
 
   getTimelineItems() {
     return this.items
-      .filter(i => i.fecha_inicio && (i.type === 'task' || i.type === 'event'))
+      .filter(i => i.fecha_inicio && (i.type === 'task' || i.type === 'event' || i.type === 'suscripcion' || i.type === 'gasto'))
       .sort((a, b) => {
         const da = new Date(a.fecha_inicio);
         const db = new Date(b.fecha_inicio);
@@ -234,6 +239,50 @@ export class Store {
       if (item.tags) item.tags.forEach(t => set.add(t));
     }
     return Array.from(set).sort();
+  }
+
+  paySubscription(item) {
+    const gasto = createItem({
+      type: 'gasto',
+      title: `${item.title} - Pago`,
+      content: `Pago de suscripción ${item.title} - $${item.monto}`,
+      monto: item.monto,
+      fecha_inicio: new Date().toISOString().slice(0, 10),
+      tags: [...(item.tags || [])],
+    });
+    this.add(gasto);
+
+    const advance = item.periodicidad === 'bimestral' ? 60 : 30;
+    const next = new Date(item.fecha_inicio);
+    next.setDate(next.getDate() + advance);
+    item.fecha_inicio = next.toISOString().slice(0, 10);
+    item.updated = Date.now();
+    this.update(item);
+
+    return gasto;
+  }
+
+  getTotalesMes() {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const gastosMes = this.items.filter(i =>
+      i.type === 'gasto' && i.fecha_inicio >= monthStart
+    );
+    const totalGastos = gastosMes.reduce((s, i) => s + (i.monto || 0), 0);
+    const suscripciones = this.items.filter(i => i.type === 'suscripcion' && i.estado === 'activa');
+    const totalSusc = suscripciones.reduce((s, i) => s + (i.monto || 0), 0);
+    const ahorros = this.items.filter(i => i.type === 'ahorro');
+    const totalAhorrado = ahorros.reduce((s, i) => s + (i.acumulado || 0), 0);
+
+    const mesAnt = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+    const mesAntFin = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+    const gastosMesAnt = this.items.filter(i =>
+      i.type === 'gasto' && i.fecha_inicio >= mesAnt && i.fecha_inicio <= mesAntFin
+    );
+    const totalAnt = gastosMesAnt.reduce((s, i) => s + (i.monto || 0), 0);
+    const diff = totalAnt > 0 ? Math.round((totalGastos - totalAnt) / totalAnt * 100) : 0;
+
+    return { totalGastos, totalSusc, totalAhorrado, diff };
   }
 
   getNextPrioritySibling(parentId) {
@@ -264,6 +313,19 @@ export class Store {
 
     add({ type: 'event', title: 'Review semanal', content: 'Revisar progreso del proyecto y ajustar prioridades', parent_id: null, priority: 1, fecha_inicio: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), tags: ['ritual'] });
     add({ type: 'event', title: 'Demo con el equipo', content: 'Mostrar avances del MVP', parent_id: null, priority: 2, fecha_inicio: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10), tags: ['ritual'] });
+
+    // Finanzas
+    const hoy = new Date();
+    const mesStr = (d) => d.toISOString().slice(0, 10);
+    add({ type: 'suscripcion', title: 'Netflix', content: 'Plan Premium 4K', monto: 199, periodicidad: 'mensual', fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 15)), tags: ['entretenimiento'], estado: 'activa' });
+    const intDate = new Date();
+    intDate.setDate(intDate.getDate() - 5);
+    add({ type: 'suscripcion', title: 'Internet TotalPlay', content: '300mb fibra óptica', monto: 899, periodicidad: 'mensual', fecha_inicio: mesStr(intDate), tags: ['servicios'], estado: 'activa' });
+    add({ type: 'suscripcion', title: 'Seguro auto', content: 'Seguro cobertura amplia', monto: 2400, periodicidad: 'bimestral', fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1)), tags: ['seguros'], estado: 'activa' });
+    add({ type: 'gasto', title: 'Supermercado Soriana', content: 'Despensa quincenal', monto: 1250, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), tags: ['alimentacion'] });
+    add({ type: 'gasto', title: 'Gasolina', content: 'Tanque lleno', monto: 850, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 3)), tags: ['transporte'] });
+    add({ type: 'ahorro', title: 'Fondo de emergencia', content: 'Meta $50,000 para imprevistos', monto: 50000, meta: 50000, acumulado: 8500, tags: ['meta'] });
+    add({ type: 'ahorro', title: 'Viaje fin de año', content: 'Ahorro para vacaciones diciembre', monto: 15000, meta: 15000, acumulado: 3200, tags: ['personal'] });
 
     for (const item of sampleItems) {
       this.add(item);

@@ -35,8 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   $pdo->beginTransaction();
   try {
-    $insertSql = "INSERT INTO items (id, type, title, content, parent_id, tags, priority, fecha_inicio, fecha_fin, estado, created, updated)
-                  VALUES (:id, :type, :title, :content, :parent_id, :tags, :priority, :fecha_inicio, :fecha_fin, :estado, :created, :updated)
+    $insertSql = "INSERT INTO items (id, type, title, content, parent_id, tags, priority, fecha_inicio, fecha_fin, estado, created, updated, monto, periodicidad, meta, acumulado)
+                  VALUES (:id, :type, :title, :content, :parent_id, :tags, :priority, :fecha_inicio, :fecha_fin, :estado, :created, :updated, :monto, :periodicidad, :meta, :acumulado)
                   ON CONFLICT (id) DO UPDATE SET
                     type = EXCLUDED.type,
                     title = EXCLUDED.title,
@@ -47,6 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     fecha_inicio = EXCLUDED.fecha_inicio,
                     fecha_fin = EXCLUDED.fecha_fin,
                     estado = EXCLUDED.estado,
+                    monto = EXCLUDED.monto,
+                    periodicidad = EXCLUDED.periodicidad,
+                    meta = EXCLUDED.meta,
+                    acumulado = EXCLUDED.acumulado,
                     updated = EXCLUDED.updated
                   WHERE items.updated < EXCLUDED.updated";
 
@@ -69,6 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'fecha_inicio' => $item['fecha_inicio'] ?? '',
           'fecha_fin' => $item['fecha_fin'] ?? '',
           'estado' => $item['estado'] ?? 'pendiente',
+          'monto' => $item['monto'] ?? 0,
+          'periodicidad' => $item['periodicidad'] ?? null,
+          'meta' => $item['meta'] ?? 0,
+          'acumulado' => $item['acumulado'] ?? 0,
           'created' => $item['created'] ?? time() * 1000,
           'updated' => $item['updated'] ?? time() * 1000,
         ]);
@@ -137,6 +145,10 @@ function formatItem($row) {
     'fecha_inicio' => $row['fecha_inicio'],
     'fecha_fin' => $row['fecha_fin'],
     'estado' => $row['estado'],
+    'monto' => (float) $row['monto'],
+    'periodicidad' => $row['periodicidad'],
+    'meta' => (float) $row['meta'],
+    'acumulado' => (float) $row['acumulado'],
     'created' => (int) $row['created'],
     'updated' => (int) $row['updated'],
   ];

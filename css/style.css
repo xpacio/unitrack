@@ -955,6 +955,89 @@ body {
 
 .bc-link:hover { color: var(--primary); text-decoration: underline; }
 
+/* ─── Finanzas ─── */
+.fz-wrapper { max-width: 640px; margin: 0 auto; }
+
+.fz-resumen { margin-bottom: 24px; }
+.fz-section-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+
+.fz-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.fz-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+}
+
+.fz-card.total { grid-column: 1 / -1; background: var(--primary); color: white; border-color: var(--primary); }
+.fz-card.total .fz-card-label { color: rgba(255,255,255,0.7); }
+.fz-card.total .fz-card-value { color: white; }
+
+.fz-card-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); }
+.fz-card-value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+.fz-card-value.ahorro { color: var(--success); }
+
+.fz-card-diff { font-size: 11px; font-weight: 600; margin-left: 6px; }
+.fz-card-diff.up { color: var(--danger); }
+.fz-card-diff.down { color: var(--success); }
+
+.fz-section { margin-bottom: 24px; }
+.fz-list { display: flex; flex-direction: column; gap: 6px; }
+
+.fz-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  box-shadow: var(--shadow);
+  transition: all var(--transition);
+}
+
+.fz-row:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+.fz-row.vencida { border-left: 3px solid var(--danger); }
+
+.fz-row-body { cursor: pointer; min-width: 0; }
+.fz-row-title { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fz-row-meta { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.fz-row-amount { font-weight: 600; color: var(--text); }
+.fz-row-date { color: var(--text-muted); }
+
+.fz-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.fz-pay-btn {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 6px 14px;
+}
+
+.fz-bar {
+  height: 6px;
+  background: var(--surface-hover);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fz-bar-fill {
+  height: 100%;
+  background: var(--success);
+  border-radius: 3px;
+  transition: width 300ms ease;
+}
+
 /* ─── Tag clickeable ─── */
 .tag-clickable {
   cursor: pointer;
