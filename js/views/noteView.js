@@ -5,9 +5,6 @@ export class NoteView {
     this.onTagClick = onTagClick;
     this.container = document.getElementById('view-notes');
     this.expanded = new Set();
-    this.selectedId = null;
-    this.editing = false;
-    this.treeCollapsed = false;
     this.render();
   }
 
@@ -18,25 +15,10 @@ export class NoteView {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
         <input type="text" id="note-search" placeholder="Buscar notas...">
       </div>
-      <div class="note-split">
-        <div class="note-tree-panel ${this.treeCollapsed ? 'collapsed' : ''}">
-          <div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">
-            <button class="note-collapse-btn" id="note-collapse-toggle">${this.treeCollapsed ? '▶' : '◀'}</button>
-            <span style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.3px;">Notas</span>
-          </div>
-          <div class="tree-root" id="note-tree">
-            ${this.renderTree(notes)}
-          </div>
-          ${notes.length === 0 ? this.emptyState() : ''}
-        </div>
-        <div class="note-editor-panel" id="note-editor">
-          <div class="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            <h3>Seleccioná una nota</h3>
-            <p>Hacé clic en una nota del árbol para verla</p>
-          </div>
-        </div>
+      <div class="tree-root" id="note-tree">
+        ${this.renderTree(notes)}
       </div>
+      ${notes.length === 0 ? this.emptyState() : ''}
     `;
     this.attachEvents();
   }
@@ -98,25 +80,20 @@ export class NoteView {
 
         const row = e.target.closest('.tree-row');
         if (row && !e.target.closest('.tree-actions, .tree-action')) {
-          const id = row.dataset.id;
-          const item = this.store.getById(id);
-          if (item) this.openEditor(item);
+          const item = this.store.getById(row.dataset.id);
+          if (item) this.openDetail(item);
           return;
         }
 
         const action = e.target.closest('[data-action]');
         if (!action) return;
-        const id = action.dataset.id;
-        const act = action.dataset.action;
-
-        if (act === 'add-sub') {
+        if (action.dataset.action === 'add-sub') {
           this.form.currentType = 'note';
-          this.form.parentId = id;
+          this.form.parentId = action.dataset.id;
           this.form.open(null);
-        } else if (act === 'delete') {
+        } else if (action.dataset.action === 'delete') {
           if (confirm('¿Eliminar esta nota y sus sub-notas?')) {
-            this.store.delete(id);
-            if (this.selectedId === id) this.selectedId = null;
+            this.store.delete(action.dataset.id);
             this.render();
           }
         }
@@ -130,116 +107,86 @@ export class NoteView {
       const tree = this.container.querySelector('#note-tree');
       tree.innerHTML = this.renderTree(results);
     });
+  }
 
-    this.container.querySelector('#note-collapse-toggle')?.addEventListener('click', () => {
-      this.treeCollapsed = !this.treeCollapsed;
-      const panel = this.container.querySelector('.note-tree-panel');
-      panel.classList.toggle('collapsed', this.treeCollapsed);
-      this.container.querySelector('#note-collapse-toggle').textContent = this.treeCollapsed ? '▶' : '◀';
+  openDetail(item) {
+    const panel = document.getElementById('detail-panel');
+    const body = document.getElementById('panel-body');
+    const title = document.getElementById('panel-title');
+    const actions = document.getElementById('panel-actions');
+
+    title.textContent = 'Nota';
+    body.innerHTML = this.renderView(item);
+    actions.innerHTML = `
+      <button class="btn btn-secondary" id="note-detail-edit">✎ Editar</button>
+      <button class="btn btn-danger" id="note-detail-delete">🗑 Eliminar</button>
+    `;
+    panel.classList.add('open');
+
+    body.querySelectorAll('.tag-clickable').forEach(el => {
+      el.addEventListener('click', () => {
+        if (this.onTagClick) this.onTagClick(el.dataset.tag);
+      });
+    });
+
+    actions.querySelector('#note-detail-edit').addEventListener('click', () => {
+      body.innerHTML = this.renderEdit(item);
+      actions.innerHTML = `
+        <button class="btn btn-primary" id="note-edit-save">Guardar</button>
+        <button class="btn btn-secondary" id="note-edit-cancel">Cancelar</button>
+      `;
+      this.attachEditEvents(item);
+    });
+
+    actions.querySelector('#note-detail-delete').addEventListener('click', () => {
+      if (confirm('¿Eliminar esta nota?')) {
+        this.store.delete(item.id);
+        panel.classList.remove('open');
+        this.render();
+      }
     });
   }
 
-  openEditor(item) {
-    this.selectedId = item.id;
-    this.editing = false;
-    const editor = this.container.querySelector('#note-editor');
-    editor.innerHTML = this.renderEditor(item);
-    this.attachEditorEvents(item);
-  }
-
-  renderEditor(item) {
-    const created = item.created ? new Date(item.created).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
-
-    if (this.editing) {
-      return `
-        <div class="panel-field">
-          <label>Título</label>
-          <input id="note-edit-title" type="text" value="${this.esc(item.title)}" style="width:100%;">
-        </div>
-        <div class="panel-field" style="margin-bottom:8px;">
-          <label>Contenido (Markdown)</label>
-          <button class="btn btn-secondary" id="note-md-help" style="font-size:11px;padding:3px 8px;margin-bottom:4px;">? MD</button>
-          <textarea id="note-edit-content" style="width:100%;min-height:200px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:13px;resize:vertical;">${this.esc(item.content || '')}</textarea>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button class="btn btn-primary" id="note-save-edit">Guardar</button>
-          <button class="btn btn-secondary" id="note-cancel-edit">Cancelar</button>
-        </div>
-      `;
-    }
-
+  renderView(item) {
+    const created = item.created
+      ? new Date(item.created).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
     const tags = item.tags?.length
-      ? `<div style="margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap;">${item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')}</div>`
+      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')
       : '';
 
     return `
-      <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-        <h2 style="font-size:18px;font-weight:600;line-height:1.3;">${this.esc(item.title)}</h2>
-        <div style="display:flex;gap:4px;flex-shrink:0;">
-          <button class="btn btn-secondary" id="note-edit-toggle" style="font-size:12px;padding:5px 10px;">✎ Editar</button>
-          <button class="btn btn-danger" id="note-delete-btn" style="font-size:12px;padding:5px 10px;">🗑</button>
-        </div>
-      </div>
-      ${tags}
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Creado: ${created}</div>
-      <hr style="border:none;border-top:1px solid var(--border-light);margin-bottom:12px;">
-      <div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div>
+      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">${this.esc(item.title)}</div></div>
+      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${tags || 'Sin tags'}</div></div>
+      <div class="panel-field"><label>Creado</label><div style="color:var(--text-secondary);font-size:13px;">${created}</div></div>
+      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
     `;
   }
 
-  attachEditorEvents(item) {
-    const mdHelp = this.container.querySelector('#note-md-help');
-    if (mdHelp) {
-      mdHelp.addEventListener('click', () => {
-        document.getElementById('modal-md').classList.add('open');
-      });
-    }
+  renderEdit(item) {
+    return `
+      <div class="panel-field"><label>Título</label><input id="note-edit-title" type="text" value="${this.esc(item.title)}" style="width:100%;"></div>
+      <div class="panel-field"><label>Contenido (Markdown)</label>
+        <button class="btn btn-secondary" id="note-edit-md-help" style="font-size:11px;padding:3px 8px;margin-bottom:4px;">? MD</button>
+        <textarea id="note-edit-content" style="width:100%;min-height:200px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:13px;resize:vertical;">${this.esc(item.content || '')}</textarea>
+      </div>
+    `;
+  }
 
-    const editToggle = this.container.querySelector('#note-edit-toggle');
-    if (editToggle) {
-      editToggle.addEventListener('click', () => {
-        this.editing = true;
-        this.openEditor(item);
-      });
-    }
+  attachEditEvents(item) {
+    document.getElementById('note-edit-md-help')?.addEventListener('click', () => {
+      document.getElementById('modal-md').classList.add('open');
+    });
 
-    const deleteBtn = this.container.querySelector('#note-delete-btn');
-    if (deleteBtn) {
-      deleteBtn.addEventListener('click', () => {
-        if (confirm('¿Eliminar esta nota?')) {
-          this.store.delete(item.id);
-          this.selectedId = null;
-          this.render();
-        }
-      });
-    }
+    document.getElementById('note-edit-save')?.addEventListener('click', () => {
+      item.title = document.getElementById('note-edit-title')?.value.trim() || item.title;
+      item.content = document.getElementById('note-edit-content')?.value || '';
+      this.store.update(item);
+      this.openDetail(item);
+    });
 
-    const saveBtn = this.container.querySelector('#note-save-edit');
-    const cancelBtn = this.container.querySelector('#note-cancel-edit');
-    const textarea = this.container.querySelector('#note-edit-content');
-    const titleInput = this.container.querySelector('#note-edit-title');
-
-    if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
-        item.title = titleInput?.value.trim() || item.title;
-        item.content = textarea?.value || '';
-        this.store.update(item);
-        this.editing = false;
-        this.openEditor(item);
-      });
-    }
-
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
-        this.editing = false;
-        this.openEditor(item);
-      });
-    }
-
-    this.container.querySelectorAll('.tag-clickable')?.forEach(el => {
-      el.addEventListener('click', (e) => {
-        if (this.onTagClick) this.onTagClick(e.currentTarget.dataset.tag);
-      });
+    document.getElementById('note-edit-cancel')?.addEventListener('click', () => {
+      this.openDetail(item);
     });
   }
 

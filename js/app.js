@@ -18,7 +18,7 @@ const views = {};
 function init() {
   views.tasks = new TaskView(store, form, showTagResults);
   views.notes = new NoteView(store, form, showTagResults);
-  views.timeline = new TimelineView(store, form);
+  views.timeline = new TimelineView(store, form, showTagResults);
 
   currentView = views.tasks;
 
@@ -67,9 +67,10 @@ function init() {
         views.tasks.openDetail(data);
       } else if (data.type === 'note') {
         switchView('notes');
-        views.notes.openEditor(data);
+        views.notes.openDetail(data);
       } else {
         switchView('timeline');
+        views.timeline.openDetail(data);
       }
     }
   });
