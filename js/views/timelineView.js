@@ -14,10 +14,10 @@ export class TimelineView {
     const grouped = this.groupByDay(items);
 
     this.container.innerHTML = `
-      <div style="max-width:640px;margin:0 auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h2 style="font-size:16px;font-weight:600;">Timeline</h2>
-          <button class="btn btn-secondary" id="tl-refresh" style="font-size:12px;">↻ Actualizar</button>
+      <div class="tl-wrapper">
+        <div class="tl-header">
+          <h2>Timeline</h2>
+          <button class="btn btn-secondary" id="tl-refresh">↻ Actualizar</button>
         </div>
         <div class="timeline">
           ${grouped.length === 0 ? this.emptyState() : grouped.map(day => this.renderDay(day)).join('')}
@@ -29,14 +29,32 @@ export class TimelineView {
   }
 
   attachEvents() {
-    this.container.querySelector('#tl-refresh')?.addEventListener('click', () => {
-      this.render();
-      this.startClock();
-    });
+    const refreshBtn = this.container.querySelector('#tl-refresh');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        this.render();
+        this.startClock();
+      });
+    }
 
-    this.container.querySelector('.timeline')?.addEventListener('click', (e) => {
-      const card = e.target.closest('.timeline-card');
-      if (!card) return;
+    this.container.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('[data-tl-action="edit"]');
+      if (editBtn) {
+        const id = editBtn.dataset.id;
+        const item = this.store.getById(id);
+        if (item) this.openDetail(item, true);
+        return;
+      }
+
+      const deleteBtn = e.target.closest('[data-tl-action="delete"]');
+      if (deleteBtn) {
+        const id = deleteBtn.dataset.id;
+        if (confirm('¿Eliminar este elemento?')) {
+          this.store.delete(id);
+          this.render();
+        }
+        return;
+      }
 
       const tag = e.target.closest('.tag-clickable');
       if (tag && this.onTagClick) {
@@ -44,47 +62,71 @@ export class TimelineView {
         return;
       }
 
-      const item = this.store.getById(card.dataset.id);
-      if (item) this.openDetail(item);
+      const card = e.target.closest('.timeline-card');
+      if (card) {
+        const item = this.store.getById(card.dataset.id);
+        if (item) this.openDetail(item);
+      }
     });
   }
 
-  openDetail(item) {
+  openDetail(item, startEdit) {
     const panel = document.getElementById('detail-panel');
     const body = document.getElementById('panel-body');
     const title = document.getElementById('panel-title');
     const actions = document.getElementById('panel-actions');
 
     title.textContent = item.type === 'task' ? 'Tarea' : 'Evento';
-    body.innerHTML = this.renderView(item);
-    actions.innerHTML = `
-      <button class="btn btn-secondary" id="tl-detail-edit">✎ Editar</button>
-      <button class="btn btn-danger" id="tl-detail-delete">🗑 Eliminar</button>
-    `;
-    panel.classList.add('open');
 
-    body.querySelectorAll('.tag-clickable').forEach(el => {
-      el.addEventListener('click', () => {
-        if (this.onTagClick) this.onTagClick(el.dataset.tag);
-      });
-    });
-
-    actions.querySelector('#tl-detail-edit').addEventListener('click', () => {
+    if (startEdit) {
       body.innerHTML = this.renderEdit(item);
       actions.innerHTML = `
         <button class="btn btn-primary" id="tl-edit-save">Guardar</button>
         <button class="btn btn-secondary" id="tl-edit-cancel">Cancelar</button>
       `;
-      this.attachEditEvents(item);
+    } else {
+      body.innerHTML = this.renderView(item);
+      actions.innerHTML = `
+        <button class="btn btn-secondary" id="tl-detail-edit">✎ Editar</button>
+        <button class="btn btn-danger" id="tl-detail-delete">🗑 Eliminar</button>
+      `;
+    }
+
+    panel.classList.add('open');
+
+    body.querySelectorAll('.tag-clickable').forEach(el => {
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (this.onTagClick) this.onTagClick(el.dataset.tag);
+      });
     });
 
-    actions.querySelector('#tl-detail-delete').addEventListener('click', () => {
-      if (confirm('¿Eliminar este elemento?')) {
-        this.store.delete(item.id);
-        panel.classList.remove('open');
-        this.render();
-      }
-    });
+    const editBtn = actions.querySelector('#tl-detail-edit');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        body.innerHTML = this.renderEdit(item);
+        actions.innerHTML = `
+          <button class="btn btn-primary" id="tl-edit-save">Guardar</button>
+          <button class="btn btn-secondary" id="tl-edit-cancel">Cancelar</button>
+        `;
+        this.attachEditEvents(item);
+      });
+    }
+
+    const deleteBtn = actions.querySelector('#tl-detail-delete');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        if (confirm('¿Eliminar este elemento?')) {
+          this.store.delete(item.id);
+          panel.classList.remove('open');
+          this.render();
+        }
+      });
+    }
+
+    if (startEdit) {
+      this.attachEditEvents(item);
+    }
   }
 
   renderView(item) {
@@ -98,12 +140,12 @@ export class TimelineView {
       : '';
 
     return `
-      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">${this.esc(item.title)}</div></div>
-      <div class="panel-field"><label>Tipo</label><div><span class="timeline-card-tag ${item.type}">${typeLabel}</span></div></div>
+      <div class="panel-field"><label>Título</label><div class="panel-value-title">${this.esc(item.title)}</div></div>
+      <div class="panel-field"><label>Tipo</label><div><span class="tl-type-badge ${item.type}">${typeLabel}</span></div></div>
       ${item.priority ? `<div class="panel-field"><label>Prioridad</label><div><span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span></div></div>` : ''}
-      <div class="panel-field"><label>Fechas</label><div style="color:var(--text-secondary);font-size:13px;">${item.fecha_inicio || '—'} → ${item.fecha_fin || '—'}</div></div>
-      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${tags || 'Sin tags'}</div></div>
-      <div class="panel-field"><label>Cuenta regresiva</label><div><span class="timeline-card-countdown ${countdownClass}">${countdown.text}</span></div></div>
+      <div class="panel-field"><label>Fechas</label><div class="panel-value-date">${item.fecha_inicio || '—'} → ${item.fecha_fin || '—'}</div></div>
+      <div class="panel-field"><label>Tags</label><div class="panel-value-tags">${tags || '<span class="text-muted">Sin tags</span>'}</div></div>
+      <div class="panel-field"><label>Cuenta regresiva</label><div><span class="tl-countdown ${countdownClass}">${countdown.text}</span></div></div>
       <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
     `;
   }
@@ -159,7 +201,8 @@ export class TimelineView {
       d.setHours(0, 0, 0, 0);
       const key = d.getTime();
       if (!map.has(key)) map.set(key, { date: d, items: [] });
-      map.get(key).items.push(item);
+      const group = map.get(key);
+      if (group) group.items.push(item);
     }
 
     return Array.from(map.values())
@@ -177,10 +220,10 @@ export class TimelineView {
     const dayClass = day.isToday ? 'today' : day.isPast ? 'past' : '';
 
     return `
-      <div class="timeline-day ${dayClass}">
-        <div class="timeline-day-marker"></div>
-        <div class="timeline-day-header">${dateStr} ${day.isToday ? '(Hoy)' : ''}</div>
-        <div class="timeline-cards">
+      <div class="tl-day ${dayClass}">
+        <div class="tl-day-marker"></div>
+        <div class="tl-day-header">${dateStr} ${day.isToday ? '(Hoy)' : ''}</div>
+        <div class="tl-cards">
           ${day.items.map(item => this.renderCard(item)).join('')}
         </div>
       </div>
@@ -197,18 +240,24 @@ export class TimelineView {
       : '';
 
     return `
-      <div class="timeline-card ${isPast ? 'past' : ''}" data-id="${item.id}">
-        <div class="timeline-card-priority p-${item.priority ?? 2}"></div>
-        <div class="timeline-card-body">
-          <div class="timeline-card-title">${this.esc(item.title)}</div>
-          <div class="timeline-card-meta">
-            <span class="timeline-card-tag ${item.type}">${typeLabel}</span>
-            <span class="timeline-card-date">${this.formatTime(item.fecha_inicio)}</span>
-            ${tags ? `<span style="display:flex;gap:2px;flex-wrap:wrap;">${tags}</span>` : ''}
-            ${item.content ? `<span class="timeline-card-date">${this.esc(item.content.slice(0, 60))}</span>` : ''}
+      <div class="tl-card ${isPast ? 'past' : ''}" data-id="${item.id}">
+        <div class="tl-card-priority p-${item.priority ?? 2}"></div>
+        <div class="tl-card-body">
+          <div class="tl-card-title">${this.esc(item.title)}</div>
+          <div class="tl-card-meta">
+            <span class="tl-card-type ${item.type}">${typeLabel}</span>
+            <span class="tl-card-date">${this.formatTime(item.fecha_inicio)}</span>
+            ${tags ? `<span class="tl-card-tags">${tags}</span>` : ''}
+            ${item.content ? `<span class="tl-card-preview">${this.esc(item.content.slice(0, 60))}</span>` : ''}
           </div>
         </div>
-        <div class="timeline-card-countdown ${countdownClass}">${countdown.text}</div>
+        <div class="tl-card-right">
+          <div class="tl-countdown ${countdownClass}">${countdown.text}</div>
+          <div class="tl-card-actions">
+            <button class="tl-action-btn" data-tl-action="edit" data-id="${item.id}" title="Editar">✎</button>
+            <button class="tl-action-btn tl-action-delete" data-tl-action="delete" data-id="${item.id}" title="Eliminar">✕</button>
+          </div>
+        </div>
       </div>
     `;
   }
