@@ -141,4 +141,26 @@ function showTagResults(tag) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+function updateSyncIndicator(status) {
+  const icon = document.getElementById('sync-icon');
+  const pending = document.getElementById('sync-pending');
+  const dot = document.getElementById('sync-dot');
+
+  icon.classList.toggle('syncing', status.syncing);
+  pending.textContent = status.pendingCount;
+  pending.classList.toggle('hidden', status.pendingCount === 0);
+  dot.className = 'sync-dot ' + (status.online ? 'online' : 'offline');
+
+  const title = status.syncing ? 'Sincronizando…'
+    : !status.online ? 'Sin conexión'
+    : status.pendingCount > 0 ? `${status.pendingCount} cambio${status.pendingCount !== 1 ? 's' : ''} pendiente${status.pendingCount !== 1 ? 's' : ''}`
+    : 'Todo sincronizado';
+  document.getElementById('sync-indicator').title = title;
+}
+
+window.addEventListener('sync-status-changed', (e) => updateSyncIndicator(e.detail));
+
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  updateSyncIndicator(store.getSyncStatus());
+});

@@ -18,8 +18,40 @@ export function createItem(data = {}) {
 export class Store {
   constructor() {
     this.items = [];
+    this._syncing = false;
+    this._syncUrl = '/api/sync.php';
+    this._pendingCount = 0;
+    this._online = navigator.onLine;
     this.load();
     if (this.items.length === 0) this.seed();
+    this.startAutoSync();
+    this._initOnlineListeners();
+  }
+
+  _initOnlineListeners() {
+    window.addEventListener('online', () => {
+      this._online = true;
+      this._dispatchStatus();
+      this.sync();
+    });
+    window.addEventListener('offline', () => {
+      this._online = false;
+      this._dispatchStatus();
+    });
+  }
+
+  _dispatchStatus() {
+    window.dispatchEvent(new CustomEvent('sync-status-changed', {
+      detail: this.getSyncStatus()
+    }));
+  }
+
+  getSyncStatus() {
+    return {
+      syncing: this._syncing,
+      pendingCount: this._pendingCount,
+      online: this._online,
+    };
   }
 
   load() {
@@ -68,6 +100,9 @@ export class Store {
   add(item) {
     this.items.push(item);
     this.save();
+    this._pendingCount++;
+    this._dispatchStatus();
+    this.sync();
   }
 
   update(item) {
@@ -76,13 +111,69 @@ export class Store {
     item.updated = Date.now();
     this.items[idx] = item;
     this.save();
+    this._pendingCount++;
+    this._dispatchStatus();
+    this.sync();
   }
 
   delete(id) {
     const descIds = this.getDescendantIds(id);
     const allIds = [id, ...descIds];
+    const deletedSet = new Map();
+    for (const did of allIds) {
+      deletedSet.set(did, { id: did });
+    }
     this.items = this.items.filter(i => !allIds.includes(i.id));
     this.save();
+    this._pendingCount++;
+    this._dispatchStatus();
+    this.sync();
+  }
+
+  async sync() {
+    if (!navigator.onLine || this._syncing) return;
+    this._syncing = true;
+    this._dispatchStatus();
+    try {
+      const payload = this.items.map(i => ({...i}));
+      const res = await fetch(this._syncUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: payload }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.items) return;
+
+      const seen = new Set();
+      const merged = [];
+
+      for (const item of data.items) {
+        merged.push(item);
+        seen.add(item.id);
+      }
+
+      for (const item of this.items) {
+        if (!seen.has(item.id)) {
+          merged.push(item);
+        }
+      }
+
+      this._pendingCount = 0;
+      this.items = merged;
+      this.save();
+    } catch {
+      // silent fail — offline
+    } finally {
+      this._syncing = false;
+      this._dispatchStatus();
+    }
+  }
+
+  startAutoSync() {
+    if (this._syncInterval) clearInterval(this._syncInterval);
+    this.sync();
+    this._syncInterval = setInterval(() => this.sync(), 30000);
   }
 
   getTree(type) {
