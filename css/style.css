@@ -719,6 +719,69 @@ body {
   color: var(--text-muted);
 }
 
+/* ─── Tag Filter Bar ─── */
+.tag-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--primary-light);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--primary);
+}
+
+.tag-filter-bar .tag-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* ─── Tag clickeable ─── */
+.tag-clickable {
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.tag-clickable:hover { filter: brightness(0.85); }
+
+/* ─── Note view collapsible ─── */
+.note-split { display: flex; gap: 16px; height: calc(100vh - 120px); }
+.note-tree-panel { flex: 0 0 280px; overflow-y: auto; border-right: 1px solid var(--border); padding-right: 12px; transition: flex 200ms ease; }
+.note-tree-panel.collapsed { flex: 0 0 0; overflow: hidden; padding: 0; border: none; min-width: 0; }
+.note-editor-panel { flex: 1; overflow-y: auto; padding-left: 4px; }
+.note-collapse-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border: none; background: var(--surface-hover);
+  color: var(--text-muted); border-radius: 3px; cursor: pointer;
+  font-size: 11px; flex-shrink: 0; margin-top: 4px;
+}
+.note-collapse-btn:hover { background: var(--surface-active); color: var(--text); }
+
+/* ─── Tag results ─── */
+.tag-result-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--radius);
+  cursor: pointer; transition: background var(--transition);
+}
+.tag-result-item:hover { background: var(--surface-hover); }
+.tag-result-item .type-badge {
+  font-size: 10px; font-weight: 600; padding: 2px 6px;
+  border-radius: 3px; text-transform: uppercase; flex-shrink: 0;
+}
+.tag-result-item .type-badge.task { background: var(--primary-light); color: var(--primary); }
+.tag-result-item .type-badge.note { background: var(--success-light); color: var(--success); }
+.tag-result-item .type-badge.event { background: var(--warning-light); color: var(--warning); }
+
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

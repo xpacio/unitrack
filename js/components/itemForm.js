@@ -163,7 +163,7 @@ export class ItemForm {
     const dg = this.body.querySelector('#f-dates-group');
     const eg = this.body.querySelector('#f-estado-group');
     pg.style.display = type === 'note' ? 'none' : '';
-    dg.style.display = type === 'note' ? 'none' : '';
+    dg.style.display = '';
     eg.style.display = type === 'note' ? 'none' : '';
   }
 
@@ -182,8 +182,8 @@ export class ItemForm {
       parent_id: this.body.querySelector('#f-parent').value.trim() || null,
       tags: this.tags,
       priority,
-      fecha_inicio: type === 'note' ? '' : this.body.querySelector('#f-fecha-inicio').value,
-      fecha_fin: type === 'note' ? '' : this.body.querySelector('#f-fecha-fin').value,
+      fecha_inicio: this.body.querySelector('#f-fecha-inicio').value,
+      fecha_fin: this.body.querySelector('#f-fecha-fin').value,
       estado: type === 'note' ? null : this.body.querySelector('#f-estado').value,
     };
 

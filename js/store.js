@@ -121,6 +121,18 @@ export class Store {
     );
   }
 
+  getByTag(tag) {
+    return this.items.filter(i => i.tags && i.tags.some(t => t.toLowerCase() === tag.toLowerCase()));
+  }
+
+  getAllTags() {
+    const set = new Set();
+    for (const item of this.items) {
+      if (item.tags) item.tags.forEach(t => set.add(t));
+    }
+    return Array.from(set).sort();
+  }
+
   getNextPrioritySibling(parentId) {
     const siblings = this.getChildren(parentId).filter(i => i.type === 'task');
     if (siblings.length === 0) return null;

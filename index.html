@@ -65,6 +65,34 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="modal-md">
+    <div class="modal" style="width:520px;">
+      <div class="modal-header">
+        <h2>Markdown Cheatsheet</h2>
+        <button class="panel-close" id="modal-md-close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="font-size:13px;line-height:1.8;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:4px 8px;font-weight:600;"># Título</td><td style="padding:4px 8px;color:var(--text-secondary);">Heading 1</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">## Título</td><td style="padding:4px 8px;color:var(--text-secondary);">Heading 2</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">### Título</td><td style="padding:4px 8px;color:var(--text-secondary);">Heading 3</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">**texto**</td><td style="padding:4px 8px;color:var(--text-secondary);"><strong>Negrita</strong></td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">*texto*</td><td style="padding:4px 8px;color:var(--text-secondary);"><em>Cursiva</em></td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">- item</td><td style="padding:4px 8px;color:var(--text-secondary);">Lista desordenada</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">1. item</td><td style="padding:4px 8px;color:var(--text-secondary);">Lista ordenada</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">`código`</td><td style="padding:4px 8px;color:var(--text-secondary);"><code>Código inline</code></td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">```bloque```</td><td style="padding:4px 8px;color:var(--text-secondary);">Bloque de código</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">[texto](url)</td><td style="padding:4px 8px;color:var(--text-secondary);">Enlace</td></tr>
+          <tr><td style="padding:4px 8px;font-weight:600;">---</td><td style="padding:4px 8px;color:var(--text-secondary);">Línea horizontal</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tag-results" class="view-container hidden"></div>
+
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
