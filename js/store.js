@@ -21,6 +21,7 @@ export class Store {
     this._syncing = false;
     this._syncUrl = '/api/sync.php';
     this._pendingCount = 0;
+    this._lastSyncAt = 0;
     this._online = navigator.onLine;
     this.load();
     if (this.items.length === 0) this.seed();
@@ -83,6 +84,19 @@ export class Store {
     return this.items.filter(i => i.parent_id === parentId);
   }
 
+  getAncestors(id) {
+    const ancestors = [];
+    let current = this.getById(id);
+    while (current && current.parent_id) {
+      const parent = this.getById(current.parent_id);
+      if (parent) {
+        ancestors.unshift(parent);
+        current = parent;
+      } else break;
+    }
+    return ancestors;
+  }
+
   getDescendantIds(parentId) {
     const ids = [];
     const queue = [parentId];
@@ -139,28 +153,26 @@ export class Store {
       const res = await fetch(this._syncUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: payload }),
+        body: JSON.stringify({ items: payload, lastSync: this._lastSyncAt }),
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (!data.items) return;
+      if (!data.changes) return;
 
-      const seen = new Set();
-      const merged = [];
-
-      for (const item of data.items) {
-        merged.push(item);
-        seen.add(item.id);
-      }
-
-      for (const item of this.items) {
-        if (!seen.has(item.id)) {
-          merged.push(item);
+      for (const serverItem of data.changes) {
+        const idx = this.items.findIndex(i => i.id === serverItem.id);
+        if (idx !== -1) {
+          this.items[idx] = serverItem;
+        } else {
+          this.items.push(serverItem);
         }
       }
 
+      if (data.serverTime) {
+        this._lastSyncAt = data.serverTime;
+      }
+
       this._pendingCount = 0;
-      this.items = merged;
       this.save();
     } catch {
       // silent fail — offline

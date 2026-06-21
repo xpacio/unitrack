@@ -4,9 +4,7 @@ export class TaskView {
     this.form = form;
     this.onTagClick = onTagClick;
     this.container = document.getElementById('view-tasks');
-    this.expanded = new Set();
-    this.dragId = null;
-    this.editingTask = null;
+    this.currentDetailId = null;
     this.render();
   }
 
@@ -34,7 +32,6 @@ export class TaskView {
     let html = '';
     for (const item of children) {
       const hasChildren = items.some(i => i.parent_id === item.id);
-      const isExpanded = this.expanded.has(item.id);
       const isCompleted = item.estado === 'completada';
       const priorityLabel = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
       const dateStr = item.fecha_inicio
@@ -47,24 +44,14 @@ export class TaskView {
 
       html += `
         <div class="tree-node" data-id="${item.id}">
-          <div class="tree-row ${isCompleted ? 'completed' : ''}" draggable="true" data-id="${item.id}" style="margin-left:${depth * 20}px">
-            <span class="tree-toggle ${hasChildren ? (isExpanded ? 'expanded' : '') : 'leaf'}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-            </span>
-            <input type="checkbox" class="tree-checkbox" ${isCompleted ? 'checked' : ''} data-id="${item.id}">
+          <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="margin-left:${depth * 20}px">
+            <span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>
             <span class="tree-title">${this.esc(item.title)}</span>
             ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
             ${tags}
             ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
-            <span class="tree-actions">
-              <button class="tree-action" data-action="add-sub" data-id="${item.id}" title="Agregar subtarea">+</button>
-              <button class="tree-action" data-action="edit" data-id="${item.id}" title="Editar">✎</button>
-              <button class="tree-action danger" data-action="delete" data-id="${item.id}" title="Eliminar">✕</button>
-            </span>
           </div>
-          <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
-            ${this.renderTree(items, item.id, depth + 1)}
-          </div>
+          ${this.renderTree(items, item.id, depth + 1)}
         </div>`;
     }
     return html;
@@ -81,103 +68,10 @@ export class TaskView {
         return;
       }
 
-      const toggle = e.target.closest('.tree-toggle:not(.leaf)');
-      if (toggle) {
-        const node = toggle.closest('.tree-node');
-        const childrenDiv = node.querySelector('.tree-children');
-        if (childrenDiv) {
-          const isHidden = childrenDiv.style.display === 'none';
-          childrenDiv.style.display = isHidden ? 'block' : 'none';
-          toggle.classList.toggle('expanded', isHidden);
-          if (isHidden) this.expanded.add(node.dataset.id);
-          else this.expanded.delete(node.dataset.id);
-        }
-        return;
-      }
-
-      const titleEl = e.target.closest('.tree-title');
-      if (titleEl) {
-        const row = titleEl.closest('.tree-row');
-        const item = this.store.getById(row?.dataset.id);
-        if (item) this.openDetail(item);
-        return;
-      }
-
-      const action = e.target.closest('[data-action]');
-      if (!action) return;
-      const id = action.dataset.id;
-      const act = action.dataset.action;
-
-      if (act === 'add-sub') {
-        this.form.currentType = 'task';
-        this.form.parentId = id;
-        this.form.open(null);
-      } else if (act === 'edit') {
-        const item = this.store.getById(id);
-        if (item) this.openDetail(item);
-      } else if (act === 'delete') {
-        if (confirm('¿Eliminar esta tarea y todas sus subtareas?')) {
-          this.store.delete(id);
-          this.render();
-        }
-      }
-    });
-
-    tree.addEventListener('change', (e) => {
-      const cb = e.target.closest('.tree-checkbox');
-      if (!cb) return;
-      const item = this.store.getById(cb.dataset.id);
-      if (item) {
-        item.estado = cb.checked ? 'completada' : 'pendiente';
-        this.store.update(item);
-        this.render();
-      }
-    });
-
-    tree.addEventListener('dragstart', (e) => {
       const row = e.target.closest('.tree-row');
       if (!row) return;
-      this.dragId = row.dataset.id;
-      row.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', row.dataset.id);
-    });
-
-    tree.addEventListener('dragend', (e) => {
-      const row = e.target.closest('.tree-row');
-      if (row) row.classList.remove('dragging');
-      tree.querySelectorAll('.tree-row.drag-over').forEach(r => r.classList.remove('drag-over'));
-      this.dragId = null;
-    });
-
-    tree.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      const row = e.target.closest('.tree-row');
-      if (!row || row.dataset.id === this.dragId) return;
-      e.dataTransfer.dropEffect = 'move';
-      row.classList.add('drag-over');
-    });
-
-    tree.addEventListener('dragleave', (e) => {
-      const row = e.target.closest('.tree-row');
-      if (row) row.classList.remove('drag-over');
-    });
-
-    tree.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const targetRow = e.target.closest('.tree-row');
-      if (!targetRow || !this.dragId || targetRow.dataset.id === this.dragId) return;
-      const draggedItem = this.store.getById(this.dragId);
-      if (!draggedItem) return;
-      const descIds = this.store.getDescendantIds(this.dragId);
-      if (descIds.includes(targetRow.dataset.id)) {
-        alert('No podés mover una tarea a sus propios descendientes.');
-        this.render();
-        return;
-      }
-      draggedItem.parent_id = targetRow.dataset.id;
-      this.store.update(draggedItem);
-      this.render();
+      const item = this.store.getById(row.dataset.id);
+      if (item) this.openDetail(item);
     });
 
     this.container.querySelector('#task-search')?.addEventListener('input', (e) => {
@@ -190,56 +84,136 @@ export class TaskView {
   }
 
   openDetail(item) {
-    this.editingTask = null;
+    this.currentDetailId = item.id;
     const panel = document.getElementById('detail-panel');
     const body = document.getElementById('panel-body');
     const title = document.getElementById('panel-title');
     const actions = document.getElementById('panel-actions');
     document.getElementById('panel-close').onclick = () => panel.classList.remove('open');
 
-    title.textContent = 'Detalle de tarea';
+    const ancestors = this.store.getAncestors(item.id);
+    const breadcrumb = ancestors.map(a =>
+      `<a href="#" class="bc-link" data-id="${a.id}">${this.esc(a.title)}</a>`
+    ).join(' › ');
+
+    title.innerHTML = breadcrumb
+      ? `<span style="font-size:13px;color:var(--text-secondary);font-weight:400;">${breadcrumb} › </span><span style="font-weight:600;">${this.esc(item.title)}</span>`
+      : this.esc(item.title);
+
     body.innerHTML = this.renderDetail(item);
     actions.innerHTML = `
       <button class="btn btn-secondary" id="task-detail-edit">✎ Editar</button>
       <button class="btn btn-danger" id="task-detail-delete">🗑 Eliminar</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-primary" id="task-detail-add-sub">+ Subtarea</button>
     `;
     panel.classList.add('open');
 
-    actions.querySelector('#task-detail-edit').addEventListener('click', () => {
-      this.editingTask = item.id;
+    this.attachPanelEvents(item);
+  }
+
+  attachPanelEvents(item) {
+    const body = document.getElementById('panel-body');
+    const actions = document.getElementById('panel-actions');
+
+    body.querySelectorAll('.bc-link').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const navItem = this.store.getById(el.dataset.id);
+        if (navItem) this.openDetail(navItem);
+      });
+    });
+
+    body.querySelectorAll('.child-link').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const childItem = this.store.getById(el.dataset.id);
+        if (childItem) this.openDetail(childItem);
+      });
+    });
+
+    body.querySelectorAll('.tag-clickable').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.onTagClick) this.onTagClick(el.dataset.tag);
+      });
+    });
+
+    actions.querySelector('#task-detail-edit')?.addEventListener('click', () => {
       body.innerHTML = this.renderDetailEdit(item);
+      actions.innerHTML = `
+        <button class="btn btn-primary" id="task-edit-save">Guardar</button>
+        <button class="btn btn-secondary" id="task-edit-cancel">Cancelar</button>
+      `;
       this.attachEditEvents(item);
     });
 
-    actions.querySelector('#task-detail-delete').addEventListener('click', () => {
+    actions.querySelector('#task-detail-delete')?.addEventListener('click', () => {
       if (confirm('¿Eliminar esta tarea y sus subtareas?')) {
         this.store.delete(item.id);
-        panel.classList.remove('open');
+        document.getElementById('detail-panel').classList.remove('open');
         this.render();
       }
+    });
+
+    actions.querySelector('#task-detail-add-sub')?.addEventListener('click', () => {
+      this.form.currentType = 'task';
+      this.form.parentId = item.id;
+      this.form.open(null);
+      document.getElementById('detail-panel').classList.remove('open');
     });
   }
 
   renderDetail(item) {
     const priorityLabel = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
     const estadoLabel = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada' };
+
     const tags = item.tags?.length
       ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')
       : 'Sin tags';
 
+    const children = this.store.getChildren(item.id)
+      .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
+
+    let estadoCheckbox = '';
+    if (item.estado === 'completada') {
+      estadoCheckbox = '<span class="tree-checkbox checked" style="margin-right:4px;"></span>';
+    } else if (item.estado === 'en_curso') {
+      estadoCheckbox = '<span class="tree-checkbox partial" style="margin-right:4px;"></span>';
+    } else {
+      estadoCheckbox = '<span class="tree-checkbox" style="margin-right:4px;"></span>';
+    }
+
+    const childrenHtml = children.length > 0
+      ? `<div class="panel-field"><label>Subtareas (${children.length})</label>
+         <div class="detail-children">
+           ${children.map(c => {
+             const chkClass = c.estado === 'completada' ? 'checked' : '';
+             return `<div class="detail-child">
+               <span class="tree-checkbox ${chkClass}"></span>
+               <span class="child-link" data-id="${c.id}">${this.esc(c.title)}</span>
+               ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
+             </div>`;
+           }).join('')}
+         </div></div>`
+      : '';
+
     return `
-      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">${this.esc(item.title)}</div></div>
-      ${item.priority ? `<div class="panel-field"><label>Prioridad</label><div><span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span></div></div>` : ''}
-      <div class="panel-field"><label>Estado</label><div>${estadoLabel[item.estado] || item.estado}</div></div>
-      <div class="panel-field"><label>Fechas</label><div style="color:var(--text-secondary);font-size:13px;">${item.fecha_inicio || '—'} → ${item.fecha_fin || '—'}</div></div>
-      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${tags}</div></div>
+      <div class="panel-field"><label>Título</label><div class="panel-value-title">${estadoCheckbox}${this.esc(item.title)}</div></div>
+      <div style="display:flex;gap:12px;margin-bottom:16px;">
+        ${item.priority ? `<div class="panel-field" style="flex:1;margin-bottom:0;"><label>Prioridad</label><div><span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span></div></div>` : ''}
+        <div class="panel-field" style="flex:1;margin-bottom:0;"><label>Estado</label><div>${estadoLabel[item.estado] || item.estado}</div></div>
+      </div>
+      <div class="panel-field"><label>Fechas</label><div class="panel-value-date">${item.fecha_inicio || '—'} → ${item.fecha_fin || '—'}</div></div>
+      <div class="panel-field"><label>Tags</label><div class="panel-value-tags">${tags}</div></div>
       <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      ${childrenHtml}
     `;
   }
 
   renderDetailEdit(item) {
     return `
-      <div class="panel-field"><label>Título</label><input id="task-edit-title" type="text" value="${this.esc(item.title)}" style="width:100%;"></div>
+      <div class="panel-field"><label>Título</label><input id="task-edit-title" type="text" value="${this.esc(item.title)}"></div>
       <div class="panel-field"><label>Prioridad</label>
         <div class="priority-group">
           <button class="priority-opt p-1 ${item.priority === 1 ? 'selected' : ''}" data-p="1">🔴 Alta</button>
@@ -248,7 +222,7 @@ export class TaskView {
         </div>
       </div>
       <div class="panel-field"><label>Estado</label>
-        <select id="task-edit-estado" style="width:100%;">
+        <select id="task-edit-estado">
           <option value="pendiente" ${item.estado === 'pendiente' ? 'selected' : ''}>Pendiente</option>
           <option value="en_curso" ${item.estado === 'en_curso' ? 'selected' : ''}>En curso</option>
           <option value="completada" ${item.estado === 'completada' ? 'selected' : ''}>Completada</option>
@@ -257,11 +231,7 @@ export class TaskView {
       <div class="panel-field"><label>Fechas</label><div style="display:flex;gap:8px;"><input id="task-edit-fi" type="date" value="${item.fecha_inicio || ''}" style="flex:1;"><input id="task-edit-ff" type="date" value="${item.fecha_fin || ''}" style="flex:1;"></div></div>
       <div class="panel-field"><label>Contenido (Markdown)</label>
         <button class="btn btn-secondary" id="task-edit-md-help" style="font-size:11px;padding:3px 8px;margin-bottom:4px;">? MD</button>
-        <textarea id="task-edit-content" style="width:100%;min-height:150px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:13px;resize:vertical;">${this.esc(item.content || '')}</textarea>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <button class="btn btn-primary" id="task-edit-save">Guardar</button>
-        <button class="btn btn-secondary" id="task-edit-cancel">Cancelar</button>
+        <textarea id="task-edit-content">${this.esc(item.content || '')}</textarea>
       </div>
     `;
   }

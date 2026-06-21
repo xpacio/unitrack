@@ -23,19 +23,6 @@ try {
   exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-  try {
-    $stmt = $pdo->query("SELECT * FROM items ORDER BY updated DESC");
-    $rows = $stmt->fetchAll();
-    $items = array_map('formatItem', $rows);
-    echo json_encode(['items' => $items]);
-  } catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
-  }
-  exit;
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $body = json_decode(file_get_contents('php://input'), true);
   if (!$body || !isset($body['items']) || !is_array($body['items'])) {
@@ -43,6 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     echo json_encode(['error' => 'Invalid request body, expected { items: [...] }']);
     exit;
   }
+
+  $lastSync = isset($body['lastSync']) ? (int) $body['lastSync'] : 0;
 
   $pdo->beginTransaction();
   try {
@@ -95,10 +84,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   try {
+    $stmt = $pdo->prepare("SELECT * FROM items WHERE updated > :lastSync ORDER BY updated ASC");
+    $stmt->execute(['lastSync' => $lastSync]);
+    $rows = $stmt->fetchAll();
+    $changes = array_map('formatItem', $rows);
+    $serverTime = round(microtime(true) * 1000);
+    echo json_encode(['changes' => $changes, 'serverTime' => $serverTime]);
+  } catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => $e->getMessage()]);
+  }
+  exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+  try {
     $stmt = $pdo->query("SELECT * FROM items ORDER BY updated DESC");
     $rows = $stmt->fetchAll();
     $items = array_map('formatItem', $rows);
-    echo json_encode(['items' => $items]);
+    $serverTime = round(microtime(true) * 1000);
+    echo json_encode(['changes' => $items, 'serverTime' => $serverTime]);
   } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
