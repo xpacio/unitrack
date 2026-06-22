@@ -24,11 +24,12 @@ function init() {
 
   currentView = views.tasks;
 
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const view = btn.dataset.view;
-      switchView(view);
-    });
+  function onNavClick(view) {
+    switchView(view);
+  }
+
+  document.querySelectorAll('.nav-btn, .bottom-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => onNavClick(btn.dataset.view));
   });
 
   document.getElementById('btn-add').addEventListener('click', () => {
@@ -45,6 +46,8 @@ function init() {
     const searchInput = container?.querySelector('.search-bar input');
     if (searchInput) searchInput.focus();
   });
+
+  document.getElementById('btn-mode-toggle')?.addEventListener('click', toggleMode);
 
   document.getElementById('panel-close').addEventListener('click', () => {
     document.getElementById('detail-panel').classList.remove('open');
@@ -77,6 +80,8 @@ function init() {
       }
     }
   });
+
+  detectMode();
 }
 
 function getActiveView() {
@@ -86,8 +91,9 @@ function getActiveView() {
 
 function switchView(view) {
   document.getElementById('tag-results').classList.add('hidden');
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector(`.nav-btn[data-view="${view}"]`).classList.add('active');
+  document.querySelectorAll('.nav-btn, .bottom-nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.nav-btn[data-view="${view}"]`)?.classList.add('active');
+  document.querySelector(`.bottom-nav-btn[data-view="${view}"]`)?.classList.add('active');
   document.querySelectorAll('.view-container').forEach(c => c.classList.add('hidden'));
   document.getElementById(`view-${view}`).classList.remove('hidden');
   document.getElementById('detail-panel').classList.remove('open');
@@ -160,6 +166,38 @@ function updateSyncIndicator(status) {
     : 'Todo sincronizado';
   document.getElementById('sync-indicator').title = title;
 }
+
+/* ─── Mode detection ─── */
+function detectMode() {
+  const saved = localStorage.getItem('unitrack_mode');
+  if (saved === 'mobile' || saved === 'desktop') {
+    applyMode(saved);
+    return;
+  }
+  const auto = window.matchMedia('(max-width: 640px)').matches ? 'mobile' : 'desktop';
+  applyMode(auto);
+}
+
+function applyMode(mode) {
+  const isMobile = mode === 'mobile';
+  document.body.classList.toggle('mode-mobile', isMobile);
+  localStorage.setItem('unitrack_mode', mode);
+  if (currentView && typeof currentView.render === 'function') {
+    currentView.render();
+  }
+}
+
+function toggleMode() {
+  const next = document.body.classList.contains('mode-mobile') ? 'desktop' : 'mobile';
+  applyMode(next);
+}
+
+/* Auto-detect on resize if no saved preference */
+window.matchMedia('(max-width: 640px)').addEventListener('change', (e) => {
+  if (!localStorage.getItem('unitrack_mode')) {
+    applyMode(e.matches ? 'mobile' : 'desktop');
+  }
+});
 
 window.addEventListener('sync-status-changed', (e) => updateSyncIndicator(e.detail));
 

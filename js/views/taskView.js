@@ -44,7 +44,7 @@ export class TaskView {
 
       html += `
         <div class="tree-node" data-id="${item.id}">
-          <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="margin-left:${depth * 20}px">
+          <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="margin-left:${depth * 20}px; --tree-depth:${depth}">
             <span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>
             <span class="tree-title">${this.esc(item.title)}</span>
             ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}

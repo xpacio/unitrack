@@ -35,7 +35,7 @@ export class NoteView {
 
       html += `
         <div class="tree-node" data-id="${item.id}">
-          <div class="tree-row" data-id="${item.id}" style="padding-left:${depth * 20 + 8}px">
+          <div class="tree-row" data-id="${item.id}" style="padding-left:${depth * 20 + 8}px; --tree-depth:${depth}">
             <span class="tree-toggle ${hasChildren ? (isExpanded ? 'expanded' : '') : 'leaf'}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
             </span>
