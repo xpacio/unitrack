@@ -11,10 +11,6 @@ export class TaskView {
   render() {
     const tasks = this.store.getByType('task');
     this.container.innerHTML = `
-      <div class="search-bar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="task-search" placeholder="Buscar tareas...">
-      </div>
       <div class="tree-root" id="task-tree">
         ${this.renderTree(tasks)}
       </div>
@@ -44,7 +40,7 @@ export class TaskView {
 
       html += `
         <div class="tree-node" data-id="${item.id}">
-          <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="margin-left:${depth * 20}px; --tree-depth:${depth}">
+          <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
             <span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>
             <span class="tree-title">${this.esc(item.title)}</span>
             ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
@@ -74,13 +70,7 @@ export class TaskView {
       if (item) this.openDetail(item);
     });
 
-    this.container.querySelector('#task-search')?.addEventListener('input', (e) => {
-      const q = e.target.value.trim();
-      if (!q) { this.render(); return; }
-      const results = this.store.search(q).filter(i => i.type === 'task');
-      const tree = this.container.querySelector('#task-tree');
-      tree.innerHTML = this.renderTree(results);
-    });
+
   }
 
   openDetail(item) {

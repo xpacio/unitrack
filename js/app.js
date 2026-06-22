@@ -40,11 +40,25 @@ function init() {
     form.open(null);
   });
 
-  document.getElementById('btn-search')?.addEventListener('click', () => {
-    const active = getActiveView();
-    const container = document.getElementById(`view-${active}`);
-    const searchInput = container?.querySelector('.search-bar input');
-    if (searchInput) searchInput.focus();
+  document.getElementById('btn-search')?.addEventListener('click', showGlobalSearch);
+
+  document.getElementById('search-back-btn')?.addEventListener('click', () => {
+    document.getElementById('view-search').classList.add('hidden');
+    document.getElementById(`view-${_lastViewBeforeSearch}`).classList.remove('hidden');
+    document.querySelector(`.nav-btn[data-view="${_lastViewBeforeSearch}"]`)?.classList.add('active');
+    document.querySelector(`.bottom-nav-btn[data-view="${_lastViewBeforeSearch}"]`)?.classList.add('active');
+    currentView = views[_lastViewBeforeSearch];
+    currentView.render();
+  });
+
+  let searchTimeout = null;
+  document.getElementById('global-search-input')?.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      const q = e.target.value.trim();
+      if (!q) { document.getElementById('search-results').innerHTML = ''; return; }
+      renderSearchResults(q);
+    }, 200);
   });
 
   document.getElementById('btn-mode-toggle')?.addEventListener('click', toggleMode);
@@ -101,6 +115,93 @@ function switchView(view) {
   currentView.render();
 }
 
+let _lastViewBeforeSearch = 'tasks';
+
+/* ─── Global Search ─── */
+function showGlobalSearch() {
+  const container = document.getElementById('view-search');
+  const input = document.getElementById('global-search-input');
+
+  _lastViewBeforeSearch = getActiveView();
+  document.querySelectorAll('.view-container').forEach(c => c.classList.add('hidden'));
+  container.classList.remove('hidden');
+  document.getElementById('detail-panel').classList.remove('open');
+
+  input.value = '';
+  document.getElementById('search-results').innerHTML = '';
+  setTimeout(() => input.focus(), 100);
+}
+
+function renderSearchResults(q) {
+  const results = store.search(q);
+  if (!results.length) {
+    document.getElementById('search-results').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">Sin resultados</p>';
+    return;
+  }
+
+  const typeLabels = {
+    task: 'Tareas', note: 'Notas', event: 'Eventos',
+    suscripcion: 'Suscripciones', gasto: 'Gastos', ahorro: 'Ahorros'
+  };
+  const typeOrder = ['task', 'note', 'event', 'suscripcion', 'gasto', 'ahorro'];
+
+  const grouped = {};
+  for (const item of results) {
+    if (!grouped[item.type]) grouped[item.type] = [];
+    grouped[item.type].push(item);
+  }
+
+  let html = '';
+  for (const type of typeOrder) {
+    const items = grouped[type];
+    if (!items) continue;
+    html += `<div style="margin-bottom:20px;">
+      <h3 style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">${typeLabels[type] || type} (${items.length})</h3>`;
+    for (const item of items) {
+      const preview = (item.content || '').replace(/[#*`\[\]]/g, '').trim().slice(0, 80);
+      html += `<div class="search-result-item" data-item-id="${item.id}">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(item.title)}</div>
+          ${preview ? `<div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(preview)}</div>` : ''}
+        </div>
+        ${item.priority ? `<span class="tree-badge p-${item.priority}">${['Alta','Media','Baja'][item.priority-1]}</span>` : ''}
+        ${item.monto ? `<span style="font-size:13px;font-weight:600;flex-shrink:0;">$${Number(item.monto).toLocaleString('es-MX',{minimumFractionDigits:2})}</span>` : ''}
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  document.getElementById('search-results').innerHTML = html;
+
+  document.querySelectorAll('.search-result-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.itemId;
+      const item = store.getById(id);
+      if (!item) return;
+
+      const viewMap = {
+        task: 'tasks', note: 'notes', event: 'timeline',
+        suscripcion: 'finanzas', gasto: 'finanzas', ahorro: 'finanzas'
+      };
+      const view = viewMap[item.type] || 'tasks';
+
+      document.getElementById('view-search').classList.add('hidden');
+      switchView(view);
+
+      const viewObj = views[view];
+      if (viewObj && typeof viewObj.openDetail === 'function') {
+        viewObj.openDetail(item);
+      }
+    });
+  });
+}
+
+function escHtml(s) {
+  if (typeof s !== 'string') return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 function showTagResults(tag) {
   const items = store.getByTag(tag);
   const container = document.getElementById('tag-results');
@@ -142,12 +243,6 @@ function showTagResults(tag) {
     `;
   }
 
-  function escHtml(s) {
-    if (typeof s !== 'string') return '';
-    const d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
-  }
 }
 
 function updateSyncIndicator(status) {

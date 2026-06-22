@@ -11,10 +11,6 @@ export class NoteView {
   render() {
     const notes = this.store.getByType('note');
     this.container.innerHTML = `
-      <div class="search-bar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="note-search" placeholder="Buscar notas...">
-      </div>
       <div class="tree-root" id="note-tree">
         ${this.renderTree(notes)}
       </div>
@@ -35,7 +31,7 @@ export class NoteView {
 
       html += `
         <div class="tree-node" data-id="${item.id}">
-          <div class="tree-row" data-id="${item.id}" style="padding-left:${depth * 20 + 8}px; --tree-depth:${depth}">
+          <div class="tree-row" data-id="${item.id}" style="--tree-depth:${depth}">
             <span class="tree-toggle ${hasChildren ? (isExpanded ? 'expanded' : '') : 'leaf'}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
             </span>
@@ -100,13 +96,7 @@ export class NoteView {
       });
     }
 
-    this.container.querySelector('#note-search')?.addEventListener('input', (e) => {
-      const q = e.target.value.trim();
-      if (!q) { this.render(); return; }
-      const results = this.store.search(q).filter(i => i.type === 'note');
-      const tree = this.container.querySelector('#note-tree');
-      tree.innerHTML = this.renderTree(results);
-    });
+
   }
 
   openDetail(item) {
