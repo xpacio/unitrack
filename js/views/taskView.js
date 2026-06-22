@@ -135,6 +135,15 @@ export class TaskView {
         if (this.onTagClick) this.onTagClick(tag.dataset.tag);
         return;
       }
+
+      const toggle = e.target.closest('.collapsible-toggle');
+      if (toggle) {
+        const collapsible = toggle.nextElementSibling;
+        if (collapsible && collapsible.classList.contains('collapsible')) {
+          collapsible.classList.toggle('expanded');
+          toggle.classList.toggle('expanded');
+        }
+      }
     }, { signal });
 
     actions.querySelector('#task-detail-edit')?.addEventListener('click', () => {
@@ -186,7 +195,13 @@ export class TaskView {
     }
 
     const siblingsHtml = siblings.length > 0
-      ? `<div class="panel-field"><label>Hermanas (${siblings.length})</label>
+      ? `<div class="panel-field">
+         <div class="collapsible-toggle" data-toggle="siblings">
+           <span class="chevron">▶</span>
+           <span class="label">Hermanas</span>
+           <span class="count">(${siblings.length})</span>
+         </div>
+         <div class="collapsible">
          <div class="detail-children">
            ${siblings.map(s => {
              const chkClass = s.estado === 'completada' ? 'checked' : '';
@@ -196,11 +211,17 @@ export class TaskView {
                ${s.priority ? `<span class="tree-badge p-${s.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][s.priority-1]}</span>` : ''}
              </div>`;
            }).join('')}
-         </div></div>`
+         </div></div></div>`
       : '';
 
     const childrenHtml = children.length > 0
-      ? `<div class="panel-field"><label>Subtareas (${children.length})</label>
+      ? `<div class="panel-field">
+         <div class="collapsible-toggle" data-toggle="children">
+           <span class="chevron">▶</span>
+           <span class="label">Subtareas</span>
+           <span class="count">(${children.length})</span>
+         </div>
+         <div class="collapsible">
          <div class="detail-children">
            ${children.map(c => {
              const chkClass = c.estado === 'completada' ? 'checked' : '';
@@ -210,7 +231,7 @@ export class TaskView {
                ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
              </div>`;
            }).join('')}
-         </div></div>`
+         </div></div></div>`
       : '';
 
     return `

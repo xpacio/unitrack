@@ -943,6 +943,38 @@ body {
   flex: 1;
 }
 
+.collapsible-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.collapsible-toggle .chevron {
+  font-size: 10px;
+  transition: transform 0.2s;
+  color: var(--text-muted);
+}
+
+.collapsible-toggle.expanded .chevron {
+  transform: rotate(90deg);
+}
+
+.collapsible-toggle .count {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.collapsible .detail-children {
+  display: none;
+}
+
+.collapsible.expanded .detail-children {
+  display: flex;
+}
+
 .child-link:hover { color: var(--primary); }
 
 .bc-link {
