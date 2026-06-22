@@ -116,7 +116,7 @@ export class TaskView {
     const body = document.getElementById('panel-body');
     const actions = document.getElementById('panel-actions');
 
-    body.querySelectorAll('.bc-link').forEach(el => {
+    document.querySelectorAll('.bc-link').forEach(el => {
       el.addEventListener('click', (e) => {
         e.preventDefault();
         const navItem = this.store.getById(el.dataset.id);

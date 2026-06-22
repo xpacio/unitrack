@@ -116,6 +116,7 @@ body {
 .btn-icon:hover { background: var(--surface-hover); color: var(--text); }
 .btn-icon.primary { color: var(--primary); }
 .btn-icon.primary:hover { background: var(--primary-light); }
+.btn-icon.active { color: var(--primary); background: var(--primary-light); }
 
 .btn-icon svg { width: 18px; height: 18px; }
 

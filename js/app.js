@@ -182,6 +182,11 @@ function applyMode(mode) {
   const isMobile = mode === 'mobile';
   document.body.classList.toggle('mode-mobile', isMobile);
   localStorage.setItem('unitrack_mode', mode);
+  const toggleBtn = document.getElementById('btn-mode-toggle');
+  if (toggleBtn) {
+    toggleBtn.classList.toggle('active', isMobile);
+    toggleBtn.title = isMobile ? 'Modo móvil - Haz clic para cambiar a escritorio' : 'Modo escritorio - Haz clic para cambiar a móvil';
+  }
   if (currentView && typeof currentView.render === 'function') {
     currentView.render();
   }
