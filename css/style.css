@@ -947,7 +947,7 @@ body {
 
 .bc-link {
   color: var(--text-secondary);
-  text-decoration: none;
+  cursor: pointer;
   transition: color var(--transition);
 }
 

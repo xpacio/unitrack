@@ -83,7 +83,7 @@ export class TaskView {
 
     const ancestors = this.store.getAncestors(item.id);
     const breadcrumb = ancestors.map(a =>
-      `<a href="#" class="bc-link" data-id="${a.id}">${this.esc(a.title)}</a>`
+      `<span class="bc-link" data-id="${a.id}">${this.esc(a.title)}</span>`
     ).join(' › ');
 
     title.innerHTML = breadcrumb
@@ -103,31 +103,39 @@ export class TaskView {
   }
 
   attachPanelEvents(item) {
+    const panel = document.getElementById('detail-panel');
     const body = document.getElementById('panel-body');
     const actions = document.getElementById('panel-actions');
 
-    document.querySelectorAll('.bc-link').forEach(el => {
-      el.addEventListener('click', (e) => {
+    if (this._panelCleanup) this._panelCleanup();
+    const controller = new AbortController();
+    this._panelCleanup = () => controller.abort();
+    const signal = controller.signal;
+
+    panel.addEventListener('click', (e) => {
+      const bc = e.target.closest('.bc-link');
+      if (bc) {
         e.preventDefault();
-        const navItem = this.store.getById(el.dataset.id);
+        const navItem = this.store.getById(bc.dataset.id);
         if (navItem) this.openDetail(navItem);
-      });
-    });
+        return;
+      }
 
-    body.querySelectorAll('.child-link').forEach(el => {
-      el.addEventListener('click', (e) => {
+      const child = e.target.closest('.child-link');
+      if (child) {
         e.preventDefault();
-        const childItem = this.store.getById(el.dataset.id);
+        const childItem = this.store.getById(child.dataset.id);
         if (childItem) this.openDetail(childItem);
-      });
-    });
+        return;
+      }
 
-    body.querySelectorAll('.tag-clickable').forEach(el => {
-      el.addEventListener('click', (e) => {
+      const tag = e.target.closest('.tag-clickable');
+      if (tag) {
         e.stopPropagation();
-        if (this.onTagClick) this.onTagClick(el.dataset.tag);
-      });
-    });
+        if (this.onTagClick) this.onTagClick(tag.dataset.tag);
+        return;
+      }
+    }, { signal });
 
     actions.querySelector('#task-detail-edit')?.addEventListener('click', () => {
       body.innerHTML = this.renderDetailEdit(item);
@@ -164,6 +172,9 @@ export class TaskView {
 
     const children = this.store.getChildren(item.id)
       .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
+    const siblings = this.store.getChildren(item.parent_id)
+      .filter(s => s.id !== item.id)
+      .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
 
     let estadoCheckbox = '';
     if (item.estado === 'completada') {
@@ -173,6 +184,20 @@ export class TaskView {
     } else {
       estadoCheckbox = '<span class="tree-checkbox" style="margin-right:4px;"></span>';
     }
+
+    const siblingsHtml = siblings.length > 0
+      ? `<div class="panel-field"><label>Hermanas (${siblings.length})</label>
+         <div class="detail-children">
+           ${siblings.map(s => {
+             const chkClass = s.estado === 'completada' ? 'checked' : '';
+             return `<div class="detail-child">
+               <span class="tree-checkbox ${chkClass}"></span>
+               <span class="child-link" data-id="${s.id}">${this.esc(s.title)}</span>
+               ${s.priority ? `<span class="tree-badge p-${s.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][s.priority-1]}</span>` : ''}
+             </div>`;
+           }).join('')}
+         </div></div>`
+      : '';
 
     const childrenHtml = children.length > 0
       ? `<div class="panel-field"><label>Subtareas (${children.length})</label>
@@ -197,6 +222,7 @@ export class TaskView {
       <div class="panel-field"><label>Fechas</label><div class="panel-value-date">${item.fecha_inicio || '—'} → ${item.fecha_fin || '—'}</div></div>
       <div class="panel-field"><label>Tags</label><div class="panel-value-tags">${tags}</div></div>
       <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      ${siblingsHtml}
       ${childrenHtml}
     `;
   }
