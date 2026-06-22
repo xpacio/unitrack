@@ -1161,19 +1161,19 @@ body.mode-mobile .view-container {
 }
 
 body.mode-mobile .detail-panel {
-  top: auto;
+  top: var(--nav-height);
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   width: 100vw;
-  height: 80vh;
-  transform: translateY(100%);
+  height: auto;
+  transform: translateX(100%);
   border-left: none;
-  border-radius: 16px 16px 0 0;
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+  border-radius: 0;
+  box-shadow: none;
 }
 
-body.mode-mobile .detail-panel.open { transform: translateY(0); }
+body.mode-mobile .detail-panel.open { transform: translateX(0); }
 
 body.mode-mobile .panel-header { padding: 12px 16px; }
 
