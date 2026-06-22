@@ -5,16 +5,19 @@ export class TaskView {
     this.onTagClick = onTagClick;
     this.container = document.getElementById('view-tasks');
     this.currentDetailId = null;
+    this._expandedFolders = new Set();
     this.render();
   }
 
   render() {
     const tasks = this.store.getByType('task');
+    const folders = this.store.getByType('carpeta');
+    const all = [...folders, ...tasks];
     this.container.innerHTML = `
       <div class="tree-root" id="task-tree">
-        ${this.renderTree(tasks)}
+        ${this.renderTree(all)}
       </div>
-      ${tasks.length === 0 ? this.emptyState() : ''}
+      ${all.length === 0 ? this.emptyState() : ''}
     `;
     this.attachEvents();
   }
@@ -22,33 +25,59 @@ export class TaskView {
   renderTree(items, parentId = null, depth = 0) {
     const children = items
       .filter(i => i.parent_id === parentId)
-      .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
+      .sort((a, b) => {
+        if (a.type === 'carpeta' && b.type !== 'carpeta') return -1;
+        if (a.type !== 'carpeta' && b.type === 'carpeta') return 1;
+        return (a.priority ?? 2) - (b.priority ?? 2);
+      });
     if (children.length === 0) return '';
 
     let html = '';
     for (const item of children) {
-      const hasChildren = items.some(i => i.parent_id === item.id);
-      const isCompleted = item.estado === 'completada';
-      const priorityLabel = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
-      const dateStr = item.fecha_inicio
-        ? new Date(item.fecha_inicio).toLocaleDateString('es', { month: 'short', day: 'numeric' })
-        : '';
+      if (item.type === 'carpeta') {
+        const isExpanded = this._expandedFolders.has(item.id);
+        const childCount = items.filter(i => i.parent_id === item.id).length;
+        const tags = item.tags?.length
+          ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${this.esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${this.esc(t)}</span>`).join('')
+          : '';
 
-      const tags = item.tags?.length
-        ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${this.esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${this.esc(t)}</span>`).join('')
-        : '';
+        html += `
+          <div class="tree-node" data-id="${item.id}">
+            <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
+              <span class="tree-folder-chevron ${isExpanded ? 'expanded' : ''}">▶</span>
+              <span class="tree-folder-icon">📁</span>
+              <span class="tree-title">${this.esc(item.title)}</span>
+              ${tags}
+              <span class="tree-count-badge">${childCount}</span>
+            </div>
+            <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
+              ${this.renderTree(items, item.id, depth + 1)}
+            </div>
+          </div>`;
+      } else {
+        const hasChildren = items.some(i => i.parent_id === item.id);
+        const isCompleted = item.estado === 'completada';
+        const priorityLabel = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
+        const dateStr = item.fecha_inicio
+          ? new Date(item.fecha_inicio).toLocaleDateString('es', { month: 'short', day: 'numeric' })
+          : '';
 
-      html += `
-        <div class="tree-node" data-id="${item.id}">
-          <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
-            <span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>
-            <span class="tree-title">${this.esc(item.title)}</span>
-            ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
-            ${tags}
-            ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
-          </div>
-          ${this.renderTree(items, item.id, depth + 1)}
-        </div>`;
+        const tags = item.tags?.length
+          ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${this.esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${this.esc(t)}</span>`).join('')
+          : '';
+
+        html += `
+          <div class="tree-node" data-id="${item.id}">
+            <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
+              <span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>
+              <span class="tree-title">${this.esc(item.title)}</span>
+              ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
+              ${tags}
+              ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
+            </div>
+            ${this.renderTree(items, item.id, depth + 1)}
+          </div>`;
+      }
     }
     return html;
   }
@@ -64,13 +93,25 @@ export class TaskView {
         return;
       }
 
+      const folderChevron = e.target.closest('.tree-folder-chevron');
+      if (folderChevron) {
+        const node = folderChevron.closest('.tree-node');
+        const childrenDiv = node.querySelector('.tree-children');
+        if (childrenDiv) {
+          const isHidden = childrenDiv.style.display === 'none';
+          childrenDiv.style.display = isHidden ? 'block' : 'none';
+          folderChevron.classList.toggle('expanded', isHidden);
+          if (isHidden) this._expandedFolders.add(node.dataset.id);
+          else this._expandedFolders.delete(node.dataset.id);
+        }
+        return;
+      }
+
       const row = e.target.closest('.tree-row');
       if (!row) return;
       const item = this.store.getById(row.dataset.id);
       if (item) this.openDetail(item);
     });
-
-
   }
 
   openDetail(item) {
@@ -80,6 +121,11 @@ export class TaskView {
     const title = document.getElementById('panel-title');
     const actions = document.getElementById('panel-actions');
     document.getElementById('panel-close').onclick = () => panel.classList.remove('open');
+
+    if (item.type === 'carpeta') {
+      this.openFolderDetail(item, panel, body, title, actions);
+      return;
+    }
 
     const ancestors = this.store.getAncestors(item.id);
     const breadcrumb = ancestors.map(a =>
@@ -98,8 +144,53 @@ export class TaskView {
       <button class="btn btn-primary" id="task-detail-add-sub">+ Subtarea</button>
     `;
     panel.classList.add('open');
+    this.attachPanelEvents(item);
+  }
+
+  openFolderDetail(item, panel, body, title, actions) {
+    const children = this.store.getChildren(item.id)
+      .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
+
+    title.textContent = this.esc(item.title);
+
+    body.innerHTML = `
+      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">📁 ${this.esc(item.title)}</div></div>
+      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${item.tags?.length ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('') : 'Sin tags'}</div></div>
+      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      ${children.length > 0 ? `
+        <div class="panel-field"><label>Contenido (${children.length})</label>
+          <div class="detail-children">
+            ${children.map(c => {
+              const chkClass = c.type === 'task' && c.estado === 'completada' ? 'checked' : '';
+              const icon = c.type === 'carpeta' ? '📁' : '';
+              return `<div class="detail-child">
+                ${c.type === 'task' ? `<span class="tree-checkbox ${chkClass}"></span>` : ''}
+                <span class="child-link" data-id="${c.id}">${icon} ${this.esc(c.title)}</span>
+                ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+    `;
+    actions.innerHTML = `
+      <button class="btn btn-secondary" id="task-detail-edit">✎ Editar</button>
+      <button class="btn btn-danger" id="task-detail-delete">🗑 Eliminar</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-primary" id="task-detail-add-sub">+ Agregar aquí</button>
+    `;
+    panel.classList.add('open');
 
     this.attachPanelEvents(item);
+    this._attachFolderPanelEvents(item, children);
+  }
+
+  _attachFolderPanelEvents(item) {
+    document.getElementById('task-detail-add-sub').addEventListener('click', () => {
+      this.form.currentType = 'task';
+      this.form.parentId = item.id;
+      this.form.open(null);
+      document.getElementById('detail-panel').classList.remove('open');
+    });
   }
 
   attachPanelEvents(item) {

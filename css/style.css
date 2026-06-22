@@ -271,6 +271,47 @@ body {
   flex-shrink: 0;
 }
 
+.tree-row.folder {
+  background: var(--surface-active);
+  font-weight: 600;
+}
+
+.tree-row.folder:hover {
+  background: var(--border-light);
+}
+
+.tree-folder-chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform var(--transition);
+  cursor: pointer;
+}
+
+.tree-folder-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.tree-folder-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.tree-count-badge {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 1px 7px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
 .tree-actions {
   display: flex;
   gap: 2px;

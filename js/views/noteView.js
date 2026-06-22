@@ -10,42 +10,74 @@ export class NoteView {
 
   render() {
     const notes = this.store.getByType('note');
+    const folders = this.store.getByType('carpeta');
+    const all = [...folders, ...notes];
     this.container.innerHTML = `
       <div class="tree-root" id="note-tree">
-        ${this.renderTree(notes)}
+        ${this.renderTree(all)}
       </div>
-      ${notes.length === 0 ? this.emptyState() : ''}
+      ${all.length === 0 ? this.emptyState() : ''}
     `;
     this.attachEvents();
   }
 
   renderTree(items, parentId = null, depth = 0) {
-    const children = items.filter(i => i.parent_id === parentId);
+    const children = items
+      .filter(i => i.parent_id === parentId)
+      .sort((a, b) => {
+        if (a.type === 'carpeta' && b.type !== 'carpeta') return -1;
+        if (a.type !== 'carpeta' && b.type === 'carpeta') return 1;
+        return 0;
+      });
     if (children.length === 0) return '';
 
     let html = '';
     for (const item of children) {
-      const hasChildren = items.some(i => i.parent_id === item.id);
-      const isExpanded = this.expanded.has(item.id);
-      const preview = (item.content || '').replace(/[#*`\[\]]/g, '').trim().slice(0, 60);
+      if (item.type === 'carpeta') {
+        const isExpanded = this.expanded.has(item.id);
+        const childCount = items.filter(i => i.parent_id === item.id).length;
+        const tags = item.tags?.length
+          ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${this.esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${this.esc(t)}</span>`).join('')
+          : '';
 
-      html += `
-        <div class="tree-node" data-id="${item.id}">
-          <div class="tree-row" data-id="${item.id}" style="--tree-depth:${depth}">
-            <span class="tree-toggle ${hasChildren ? (isExpanded ? 'expanded' : '') : 'leaf'}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-            </span>
-            <span class="tree-title">${this.esc(item.title)}</span>
-            ${preview ? `<span class="tree-preview">— ${this.esc(preview)}</span>` : ''}
-            <span class="tree-actions">
-              <button class="tree-action" data-action="add-sub" data-id="${item.id}" title="Agregar sub-nota">+</button>
-              <button class="tree-action danger" data-action="delete" data-id="${item.id}" title="Eliminar">✕</button>
-            </span>
-          </div>
-          <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
-            ${this.renderTree(items, item.id, depth + 1)}
-          </div>
-        </div>`;
+        html += `
+          <div class="tree-node" data-id="${item.id}">
+            <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
+              <span class="tree-toggle ${isExpanded ? 'expanded' : ''}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+              </span>
+              <span class="tree-folder-icon">📁</span>
+              <span class="tree-title">${this.esc(item.title)}</span>
+              ${tags}
+              <span class="tree-count-badge">${childCount}</span>
+            </div>
+            <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
+              ${this.renderTree(items, item.id, depth + 1)}
+            </div>
+          </div>`;
+      } else {
+        const hasChildren = items.some(i => i.parent_id === item.id);
+        const isExpanded = this.expanded.has(item.id);
+        const preview = (item.content || '').replace(/[#*`\[\]]/g, '').trim().slice(0, 60);
+
+        html += `
+          <div class="tree-node" data-id="${item.id}">
+            <div class="tree-row" data-id="${item.id}" style="--tree-depth:${depth}">
+              <span class="tree-toggle ${hasChildren ? (isExpanded ? 'expanded' : '') : 'leaf'}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+              </span>
+              <span class="tree-title">${this.esc(item.title)}</span>
+              ${preview ? `<span class="tree-preview">— ${this.esc(preview)}</span>` : ''}
+              <span class="tree-actions">
+                <button class="tree-action" data-action="add-sub" data-id="${item.id}" title="Agregar sub-nota">+</button>
+                <button class="tree-action danger" data-action="delete" data-id="${item.id}" title="Eliminar">✕</button>
+              </span>
+            </div>
+            <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
+              ${this.renderTree(items, item.id, depth + 1)}
+            </div>
+          </div>`;
+      }
     }
     return html;
   }
@@ -95,8 +127,6 @@ export class NoteView {
         }
       });
     }
-
-
   }
 
   openDetail(item) {
@@ -104,6 +134,11 @@ export class NoteView {
     const body = document.getElementById('panel-body');
     const title = document.getElementById('panel-title');
     const actions = document.getElementById('panel-actions');
+
+    if (item.type === 'carpeta') {
+      this.openFolderDetail(item, panel, body, title, actions);
+      return;
+    }
 
     title.textContent = 'Nota';
     body.innerHTML = this.renderView(item);
@@ -134,6 +169,73 @@ export class NoteView {
         panel.classList.remove('open');
         this.render();
       }
+    });
+  }
+
+  openFolderDetail(item, panel, body, title, actions) {
+    title.textContent = this.esc(item.title);
+
+    const children = this.store.getChildren(item.id);
+
+    body.innerHTML = `
+      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">📁 ${this.esc(item.title)}</div></div>
+      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${item.tags?.length ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('') : 'Sin tags'}</div></div>
+      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      ${children.length > 0 ? `
+        <div class="panel-field"><label>Contenido (${children.length})</label>
+          <div class="detail-children">
+            ${children.map(c => {
+              const icon = c.type === 'carpeta' ? '📁' : '';
+              return `<div class="detail-child">
+                <span class="child-link" data-id="${c.id}">${icon} ${this.esc(c.title)}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : ''}
+    `;
+    actions.innerHTML = `
+      <button class="btn btn-secondary" id="note-detail-edit">✎ Editar</button>
+      <button class="btn btn-danger" id="note-detail-delete">🗑 Eliminar</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-primary" id="note-folder-add">+ Agregar aquí</button>
+    `;
+    panel.classList.add('open');
+
+    actions.querySelector('#note-detail-edit').addEventListener('click', () => {
+      body.innerHTML = this.renderEdit(item);
+      actions.innerHTML = `
+        <button class="btn btn-primary" id="note-edit-save">Guardar</button>
+        <button class="btn btn-secondary" id="note-edit-cancel">Cancelar</button>
+      `;
+      this.attachEditEvents(item);
+    });
+
+    actions.querySelector('#note-detail-delete').addEventListener('click', () => {
+      if (confirm('¿Eliminar esta carpeta y su contenido?')) {
+        this.store.delete(item.id);
+        panel.classList.remove('open');
+        this.render();
+      }
+    });
+
+    actions.querySelector('#note-folder-add').addEventListener('click', () => {
+      this.form.currentType = 'note';
+      this.form.parentId = item.id;
+      this.form.open(null);
+      panel.classList.remove('open');
+    });
+
+    body.querySelectorAll('.child-link').forEach(el => {
+      el.addEventListener('click', () => {
+        const childItem = this.store.getById(el.dataset.id);
+        if (childItem) this.openDetail(childItem);
+      });
+    });
+
+    body.querySelectorAll('.tag-clickable').forEach(el => {
+      el.addEventListener('click', () => {
+        if (this.onTagClick) this.onTagClick(el.dataset.tag);
+      });
     });
   }
 

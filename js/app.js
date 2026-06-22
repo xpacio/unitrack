@@ -33,9 +33,7 @@ function init() {
   });
 
   document.getElementById('btn-add').addEventListener('click', () => {
-    const view = getActiveView();
-    const typeMap = { tasks: 'task', notes: 'note', timeline: 'event', finanzas: 'gasto' };
-    form.currentType = typeMap[view] || 'task';
+    form.currentType = 'carpeta';
     form.parentId = null;
     form.open(null);
   });

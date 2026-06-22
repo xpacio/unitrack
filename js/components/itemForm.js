@@ -38,7 +38,7 @@ export class ItemForm {
   }
 
   typeLabel(t) {
-    const map = { task: 'Tarea', note: 'Nota', event: 'Evento', suscripcion: 'Suscripción', gasto: 'Gasto', ahorro: 'Ahorro' };
+    const map = { task: 'Tarea', note: 'Nota', event: 'Evento', suscripcion: 'Suscripción', gasto: 'Gasto', ahorro: 'Ahorro', carpeta: 'Carpeta' };
     return map[t] || t;
   }
 
@@ -63,6 +63,7 @@ export class ItemForm {
           <option value="suscripcion" ${item.type === 'suscripcion' ? 'selected' : ''}>Suscripción</option>
           <option value="gasto" ${item.type === 'gasto' ? 'selected' : ''}>Gasto</option>
           <option value="ahorro" ${item.type === 'ahorro' ? 'selected' : ''}>Ahorro</option>
+          <option value="carpeta" ${item.type === 'carpeta' ? 'selected' : ''}>Carpeta</option>
         </select>
       </div>
       <div class="panel-field">
@@ -152,7 +153,7 @@ export class ItemForm {
       opts = ['activa', 'pausada', 'cancelada'];
     } else if (type === 'ahorro') {
       opts = ['activa', 'completada'];
-    } else if (type === 'note') {
+    } else if (type === 'note' || type === 'carpeta') {
       opts = [];
     } else {
       opts = ['pendiente', 'en_curso', 'completada'];
@@ -166,7 +167,7 @@ export class ItemForm {
     const typeSel = this.body.querySelector('#f-type');
     typeSel.addEventListener('change', () => {
       this.currentType = typeSel.value;
-      const placeholder = { task: 'Tarea', note: 'Nota', event: 'Evento', suscripcion: 'Suscripción', gasto: 'Gasto', ahorro: 'Ahorro' };
+      const placeholder = { task: 'Tarea', note: 'Nota', event: 'Evento', suscripcion: 'Suscripción', gasto: 'Gasto', ahorro: 'Ahorro', carpeta: 'Carpeta' };
       this.updateVisibility(typeSel.value);
       this.updateEstadoOptions({ type: typeSel.value, estado: null });
     });
@@ -220,9 +221,10 @@ export class ItemForm {
     const per = this.body.querySelector('#f-periodicidad-group');
     const ag = this.body.querySelector('#f-ahorro-group');
 
-    pg.style.display = (type === 'note' || type === 'ahorro' || type === 'gasto') ? 'none' : '';
-    dg.style.display = (type === 'ahorro' || type === 'gasto') ? 'none' : '';
-    eg.style.display = type === 'note' ? 'none' : '';
+    const hideAll = type === 'note' || type === 'carpeta';
+    pg.style.display = (hideAll || type === 'ahorro' || type === 'gasto') ? 'none' : '';
+    dg.style.display = (hideAll || type === 'ahorro' || type === 'gasto') ? 'none' : '';
+    eg.style.display = hideAll ? 'none' : '';
     mg.style.display = (type === 'suscripcion' || type === 'gasto' || type === 'ahorro') ? '' : 'none';
     per.style.display = type === 'suscripcion' ? '' : 'none';
     ag.style.display = type === 'ahorro' ? '' : 'none';
@@ -234,7 +236,7 @@ export class ItemForm {
     if (!title) { alert('El título es obligatorio'); return; }
 
     const selPri = this.body.querySelector('.priority-opt.selected');
-    const priority = (type === 'note' || type === 'ahorro' || type === 'gasto') ? null : parseInt(selPri?.dataset.p || '2');
+    const priority = (type === 'note' || type === 'carpeta' || type === 'ahorro' || type === 'gasto') ? null : parseInt(selPri?.dataset.p || '2');
 
     const data = {
       type,
@@ -245,7 +247,7 @@ export class ItemForm {
       priority,
       fecha_inicio: type === 'ahorro' ? '' : this.body.querySelector('#f-fecha-inicio').value,
       fecha_fin: type === 'ahorro' || type === 'gasto' ? '' : this.body.querySelector('#f-fecha-fin').value,
-      estado: type === 'note' ? null : this.body.querySelector('#f-estado').value,
+      estado: (type === 'note' || type === 'carpeta') ? null : this.body.querySelector('#f-estado').value,
       monto: (type === 'suscripcion' || type === 'gasto' || type === 'ahorro') ? parseFloat(this.body.querySelector('#f-monto').value) || 0 : 0,
       periodicidad: type === 'suscripcion' ? this.body.querySelector('#f-periodicidad').value : null,
       meta: type === 'ahorro' ? parseFloat(this.body.querySelector('#f-meta').value) || 0 : 0,

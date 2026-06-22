@@ -7,10 +7,10 @@ export function createItem(data = {}) {
     content: data.content || '',
     parent_id: data.parent_id || null,
     tags: data.tags || [],
-    priority: data.priority ?? (type === 'note' ? null : type === 'ahorro' ? null : 2),
+    priority: data.priority ?? (type === 'note' || type === 'carpeta' ? null : type === 'ahorro' ? null : 2),
     fecha_inicio: data.fecha_inicio || '',
     fecha_fin: data.fecha_fin || '',
-    estado: data.estado || (type === 'note' ? null : type === 'suscripcion' ? 'activa' : 'pendiente'),
+    estado: data.estado || (type === 'note' || type === 'carpeta' ? null : type === 'suscripcion' ? 'activa' : 'pendiente'),
     monto: data.monto ?? 0,
     periodicidad: data.periodicidad || null,
     meta: data.meta ?? 0,
@@ -300,15 +300,18 @@ export class Store {
       return item.id;
     };
 
-    const root1 = add({ type: 'task', title: 'Lanzar MVP', content: 'Plan de lanzamiento de la versión inicial', parent_id: null, priority: 1, fecha_inicio: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10), estado: 'en_curso', tags: ['meta'] });
+    const carpetaDesarrollo = add({ type: 'carpeta', title: 'Desarrollo', content: 'Tareas y notas de desarrollo del proyecto', tags: ['dev'] });
+    const carpetaDiseno = add({ type: 'carpeta', title: 'Diseño UI', content: 'Todo lo relacionado a diseño de interfaz', tags: ['diseño', 'ui'] });
+
+    const root1 = add({ type: 'task', title: 'Lanzar MVP', content: 'Plan de lanzamiento de la versión inicial', parent_id: carpetaDesarrollo, priority: 1, fecha_inicio: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10), estado: 'en_curso', tags: ['meta'] });
     const sub1 = add({ type: 'task', title: 'Diseñar sistema de tareas', content: 'Definir modelo unificado Item con type task/note/event', parent_id: root1, priority: 1, fecha_inicio: new Date(Date.now() + 86400000).toISOString().slice(0, 10), fecha_fin: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), estado: 'en_curso', tags: ['diseño'] });
     add({ type: 'task', title: 'Implementar treeview', content: 'Componente de árbol expandible con drag & drop', parent_id: sub1, priority: 1, fecha_inicio: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), estado: 'pendiente', tags: ['dev'] });
     add({ type: 'task', title: 'Crear store persistente', content: 'LocalStorage + CRUD completo', parent_id: sub1, priority: 2, estado: 'pendiente', tags: ['dev'] });
-    add({ type: 'task', title: 'Estilos CSS modernos', content: 'Variables, layout responsivo, animaciones', parent_id: root1, priority: 3, estado: 'completada', tags: ['diseño'] });
+    add({ type: 'task', title: 'Estilos CSS modernos', content: 'Variables, layout responsivo, animaciones', parent_id: carpetaDiseno, priority: 3, estado: 'completada', tags: ['diseño'] });
     add({ type: 'task', title: 'Escribir tests', content: 'Cubrir casos de uso principales', parent_id: root1, priority: 2, estado: 'pendiente', tags: ['qa'] });
 
     add({ type: 'note', title: 'Ideas del modelo unificado', content: '# Modelo Unificado\n\nUn solo tipo `Item` con `type` para task/note/event.\n\n- **parent_id** define jerarquía y prerequisitos\n- **tags** para relaciones transversales\n- fechas solo para task/event', parent_id: null, tags: ['diseño', 'core'] });
-    add({ type: 'note', title: 'Referencias de diseño UI', content: 'Inspiración: Things 3, Notion, Linear.\n\n- Clean, minimal\n- Prioridad con colores\n- Treeview con indentación clara', parent_id: null, tags: ['diseño', 'ui'] });
+    add({ type: 'note', title: 'Referencias de diseño UI', content: 'Inspiración: Things 3, Notion, Linear.\n\n- Clean, minimal\n- Prioridad con colores\n- Treeview con indentación clara', parent_id: carpetaDiseno, tags: ['diseño', 'ui'] });
     add({ type: 'note', title: 'Notas de la reunión', content: '## Sprint Planning\n\n- Definir modelo unificado\n- Implementar CRUD\n- Diseñar timeline\n\n### Pendientes\nRevisar drag & drop', parent_id: null, tags: ['reunión'] });
 
     add({ type: 'event', title: 'Review semanal', content: 'Revisar progreso del proyecto y ajustar prioridades', parent_id: null, priority: 1, fecha_inicio: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), tags: ['ritual'] });
