@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UniTrack</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
-  <div id="app">
+  <div id="app" class="hidden">
     <nav class="nav-bar">
       <span class="brand">UniTrack</span>
       <button class="nav-btn active" data-view="tasks">
@@ -41,6 +41,9 @@
         </button>
         <button class="btn-icon" id="btn-mode-toggle" title="Cambiar modo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M8 21h8M12 17v4"/></svg>
+        </button>
+        <button class="btn-icon" id="btn-user" title="Usuario">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </button>
       </div>
     </nav>
@@ -76,6 +79,65 @@
         </div>
         <div id="search-results"></div>
       </div>
+    </div>
+  </div>
+
+  <div id="view-auth">
+    <div class="landing">
+      <div class="landing-bg">
+        <div class="landing-bg-circle landing-bg-circle-1"></div>
+        <div class="landing-bg-circle landing-bg-circle-2"></div>
+      </div>
+
+      <div class="landing-hero">
+        <div class="landing-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            <path d="M9 14l2 2 4-4"/>
+          </svg>
+        </div>
+        <h1 class="landing-title">UniTrack</h1>
+        <p class="landing-sub">Tu gestor unificado de tareas, notas y más</p>
+      </div>
+
+      <div class="landing-card">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth-tab="login">Iniciar sesión</button>
+          <button class="auth-tab" data-auth-tab="register">Registrarse</button>
+        </div>
+
+        <form id="auth-login" class="auth-form">
+          <div class="auth-field">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" placeholder="tu@email.com" autocomplete="email" required>
+          </div>
+          <div class="auth-field">
+            <label for="login-password">Contraseña</label>
+            <input type="password" id="login-password" placeholder="••••••" autocomplete="current-password" required>
+          </div>
+          <div class="auth-error" id="login-error"></div>
+          <button type="submit" class="auth-btn">Iniciar sesión</button>
+        </form>
+
+        <form id="auth-register" class="auth-form hidden">
+          <div class="auth-field">
+            <label for="register-nombre">Nombre</label>
+            <input type="text" id="register-nombre" placeholder="Tu nombre" autocomplete="name">
+          </div>
+          <div class="auth-field">
+            <label for="register-email">Email</label>
+            <input type="email" id="register-email" placeholder="tu@email.com" autocomplete="email" required>
+          </div>
+          <div class="auth-field">
+            <label for="register-password">Contraseña</label>
+            <input type="password" id="register-password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" required>
+          </div>
+          <div class="auth-error" id="register-error"></div>
+          <button type="submit" class="auth-btn">Crear cuenta</button>
+        </form>
+      </div>
+
+      <p class="landing-footer">UniTrack &copy; 2026 · <a href="#" id="btn-reset" class="reset-link">Restablecer</a></p>
     </div>
   </div>
 
@@ -134,6 +196,26 @@
 
   <div id="tag-results" class="view-container hidden"></div>
 
-  <script type="module" src="js/app.js"></script>
+  <div class="modal-overlay" id="modal-user">
+    <div class="modal" style="width:360px;">
+      <div class="modal-header">
+        <h2>Usuario</h2>
+        <button class="panel-close" id="modal-user-close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="width:56px;height:56px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;margin:0 auto 8px;" id="user-avatar"></div>
+          <div style="font-weight:600;font-size:16px;" id="user-name"></div>
+          <div style="font-size:13px;color:var(--text-secondary);" id="user-email"></div>
+        </div>
+        <button class="auth-btn" id="btn-logout" style="background:var(--danger);">Cerrar sesión</button>
+        <button class="auth-btn" id="btn-reset-user" style="background:transparent;color:var(--text-muted);font-size:12px;margin-top:8px;padding:8px;">Restablecer todo</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js?v=2"></script>
 </body>
 </html>

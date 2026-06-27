@@ -21,7 +21,7 @@ export function createItem(data = {}) {
 }
 
 export class Store {
-  constructor() {
+  constructor(options = {}) {
     this.items = [];
     this._syncing = false;
     this._syncUrl = '/api/sync.php';
@@ -29,7 +29,7 @@ export class Store {
     this._lastSyncAt = 0;
     this._online = navigator.onLine;
     this.load();
-    if (this.items.length === 0) this.seed();
+    if (this.items.length === 0 && !options.noSeed) this.seed();
     this.startAutoSync();
     this._initOnlineListeners();
   }
@@ -71,6 +71,14 @@ export class Store {
 
   save() {
     localStorage.setItem('unified_items', JSON.stringify(this.items));
+  }
+
+  clear() {
+    this.items = [];
+    this._lastSyncAt = 0;
+    this._pendingCount = 0;
+    localStorage.removeItem('unified_items');
+    this._dispatchStatus();
   }
 
   getAll() {
@@ -158,9 +166,15 @@ export class Store {
       const res = await fetch(this._syncUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ items: payload, lastSync: this._lastSyncAt }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.dispatchEvent(new CustomEvent('auth-required'));
+        }
+        return;
+      }
       const data = await res.json();
       if (!data.changes) return;
 
@@ -191,6 +205,13 @@ export class Store {
     if (this._syncInterval) clearInterval(this._syncInterval);
     this.sync();
     this._syncInterval = setInterval(() => this.sync(), 30000);
+  }
+
+  destroy() {
+    if (this._syncInterval) {
+      clearInterval(this._syncInterval);
+      this._syncInterval = null;
+    }
   }
 
   getTree(type) {
@@ -292,11 +313,10 @@ export class Store {
   }
 
   seed() {
-    const id = (n) => n + '_' + Date.now();
-    const sampleItems = [];
+    const batch = [];
     const add = (data) => {
       const item = createItem(data);
-      sampleItems.push(item);
+      batch.push(item);
       return item.id;
     };
 
@@ -317,7 +337,6 @@ export class Store {
     add({ type: 'event', title: 'Review semanal', content: 'Revisar progreso del proyecto y ajustar prioridades', parent_id: null, priority: 1, fecha_inicio: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), tags: ['ritual'] });
     add({ type: 'event', title: 'Demo con el equipo', content: 'Mostrar avances del MVP', parent_id: null, priority: 2, fecha_inicio: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10), tags: ['ritual'] });
 
-    // Finanzas
     const hoy = new Date();
     const mesStr = (d) => d.toISOString().slice(0, 10);
     add({ type: 'suscripcion', title: 'Netflix', content: 'Plan Premium 4K', monto: 199, periodicidad: 'mensual', fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 15)), tags: ['entretenimiento'], estado: 'activa' });
@@ -330,8 +349,9 @@ export class Store {
     add({ type: 'ahorro', title: 'Fondo de emergencia', content: 'Meta $50,000 para imprevistos', monto: 50000, meta: 50000, acumulado: 8500, tags: ['meta'] });
     add({ type: 'ahorro', title: 'Viaje fin de año', content: 'Ahorro para vacaciones diciembre', monto: 15000, meta: 15000, acumulado: 3200, tags: ['personal'] });
 
-    for (const item of sampleItems) {
-      this.add(item);
-    }
+    this.items.push(...batch);
+    this._pendingCount += batch.length;
+    this.save();
+    this._dispatchStatus();
   }
 }

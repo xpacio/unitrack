@@ -1,13 +1,38 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? '';
+$expectedOrigin = "$scheme://$host";
+$requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+if ($requestOrigin === $expectedOrigin || $requestOrigin === '') {
+    header("Access-Control-Allow-Origin: $expectedOrigin");
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Allow-Credentials: true');
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   http_response_code(204);
   exit;
 }
+
+ini_set('session.cookie_httponly', 1);
+ini_set('session.use_only_cookies', 1);
+ini_set('session.cookie_samesite', 'Lax');
+if ($scheme === 'https') {
+    ini_set('session.cookie_secure', 1);
+}
+session_start();
+
+if (!isset($_SESSION['user_id'])) {
+  http_response_code(401);
+  echo json_encode(['error' => 'No autenticado']);
+  exit;
+}
+
+$userId = $_SESSION['user_id'];
 
 $config = require __DIR__ . '/config.php';
 
@@ -19,7 +44,7 @@ try {
   ]);
 } catch (PDOException $e) {
   http_response_code(500);
-  echo json_encode(['error' => 'DB connection failed: ' . $e->getMessage()]);
+  echo json_encode(['error' => 'DB connection failed']);
   exit;
 }
 
@@ -35,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   $pdo->beginTransaction();
   try {
-    $insertSql = "INSERT INTO items (id, type, title, content, parent_id, tags, priority, fecha_inicio, fecha_fin, estado, created, updated, monto, periodicidad, meta, acumulado)
-                  VALUES (:id, :type, :title, :content, :parent_id, :tags, :priority, :fecha_inicio, :fecha_fin, :estado, :created, :updated, :monto, :periodicidad, :meta, :acumulado)
+    $insertSql = "INSERT INTO items (id, type, title, content, parent_id, tags, priority, fecha_inicio, fecha_fin, estado, created, updated, monto, periodicidad, meta, acumulado, user_id)
+                  VALUES (:id, :type, :title, :content, :parent_id, :tags, :priority, :fecha_inicio, :fecha_fin, :estado, :created, :updated, :monto, :periodicidad, :meta, :acumulado, :user_id)
                   ON CONFLICT (id) DO UPDATE SET
                     type = EXCLUDED.type,
                     title = EXCLUDED.title,
@@ -52,14 +77,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     meta = EXCLUDED.meta,
                     acumulado = EXCLUDED.acumulado,
                     updated = EXCLUDED.updated
-                  WHERE items.updated < EXCLUDED.updated";
+                  WHERE items.updated < EXCLUDED.updated AND items.user_id = :user_id2";
 
-    $deleteSql = "DELETE FROM items WHERE id = :id";
+    $deleteSql = "DELETE FROM items WHERE id = :id AND user_id = :user_id";
 
     foreach ($body['items'] as $item) {
       if (isset($item['_delete']) && $item['_delete'] === true) {
         $stmt = $pdo->prepare($deleteSql);
-        $stmt->execute(['id' => $item['id']]);
+        $stmt->execute(['id' => $item['id'], 'user_id' => $userId]);
       } else {
         $stmt = $pdo->prepare($insertSql);
         $stmt->execute([
@@ -68,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'title' => $item['title'] ?? '',
           'content' => $item['content'] ?? '',
           'parent_id' => $item['parent_id'] ?? null,
-          'tags' => '{' . implode(',', array_map(function($t) { return '"' . str_replace('"', '\\"', $t) . '"'; }, $item['tags'] ?? [])) . '}',
+          'tags' => '{' . implode(',', array_map(function($t) { $escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $t); return '"' . $escaped . '"'; }, $item['tags'] ?? [])) . '}',
           'priority' => $item['priority'] ?? 2,
           'fecha_inicio' => $item['fecha_inicio'] ?? '',
           'fecha_fin' => $item['fecha_fin'] ?? '',
@@ -77,8 +102,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'periodicidad' => $item['periodicidad'] ?? null,
           'meta' => $item['meta'] ?? 0,
           'acumulado' => $item['acumulado'] ?? 0,
-          'created' => $item['created'] ?? time() * 1000,
-          'updated' => $item['updated'] ?? time() * 1000,
+          'created' => $item['created'] ?? round(microtime(true) * 1000),
+          'updated' => $item['updated'] ?? round(microtime(true) * 1000),
+          'user_id' => $userId,
+          'user_id2' => $userId,
         ]);
       }
     }
@@ -92,8 +119,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   try {
-    $stmt = $pdo->prepare("SELECT * FROM items WHERE updated > :lastSync ORDER BY updated ASC");
-    $stmt->execute(['lastSync' => $lastSync]);
+    $stmt = $pdo->prepare("SELECT * FROM items WHERE updated > :lastSync AND user_id = :user_id ORDER BY updated ASC");
+    $stmt->execute(['lastSync' => $lastSync, 'user_id' => $userId]);
     $rows = $stmt->fetchAll();
     $changes = array_map('formatItem', $rows);
     $serverTime = round(microtime(true) * 1000);
@@ -107,7 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   try {
-    $stmt = $pdo->query("SELECT * FROM items ORDER BY updated DESC");
+    $stmt = $pdo->prepare("SELECT * FROM items WHERE user_id = :user_id ORDER BY updated DESC");
+    $stmt->execute(['user_id' => $userId]);
     $rows = $stmt->fetchAll();
     $items = array_map('formatItem', $rows);
     $serverTime = round(microtime(true) * 1000);
