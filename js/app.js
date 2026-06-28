@@ -338,6 +338,9 @@ function initAuth() {
   const registerForm = document.getElementById('auth-register');
   const loginError = document.getElementById('login-error');
   const registerError = document.getElementById('register-error');
+  const forgotError = document.getElementById('forgot-error');
+  const forgotOk = document.getElementById('forgot-ok');
+  const forgotEmail = document.getElementById('forgot-email');
 
   document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -348,6 +351,8 @@ function initAuth() {
       document.getElementById(`auth-${target}`).classList.remove('hidden');
       loginError.textContent = '';
       registerError.textContent = '';
+      forgotError.textContent = '';
+      forgotOk.classList.add('hidden');
     });
   });
 
@@ -468,22 +473,6 @@ function initAuth() {
     pwModal.classList.remove('open');
   });
 
-  const forgotSection = document.getElementById('forgot-section');
-  const forgotEmail = document.getElementById('forgot-email');
-  const forgotError = document.getElementById('forgot-error');
-  const forgotOk = document.getElementById('forgot-ok');
-
-  document.getElementById('btn-forgot-pw')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    forgotSection.classList.toggle('hidden');
-    if (!forgotSection.classList.contains('hidden')) {
-      forgotEmail.value = '';
-      forgotError.textContent = '';
-      forgotOk.classList.add('hidden');
-      forgotEmail.focus();
-    }
-  });
-
   document.getElementById('btn-forgot-send')?.addEventListener('click', async () => {
     const email = forgotEmail.value.trim();
     if (!email) {
@@ -510,7 +499,7 @@ function initAuth() {
             clearInterval(iv);
             forgotError.textContent = '';
             btn.disabled = false;
-            btn.textContent = 'Enviar nueva clave';
+            btn.textContent = 'Enviar enlace';
           } else {
             forgotError.textContent = `Espera ${secs}s antes de reintentar`;
           }
@@ -519,12 +508,12 @@ function initAuth() {
         forgotOk.classList.remove('hidden');
         forgotEmail.value = '';
         btn.disabled = false;
-        btn.textContent = 'Enviar nueva clave';
+        btn.textContent = 'Enviar enlace';
       }
     } catch {
       forgotError.textContent = 'Error de conexión';
       btn.disabled = false;
-      btn.textContent = 'Enviar nueva clave';
+      btn.textContent = 'Enviar enlace';
     }
   });
 }
