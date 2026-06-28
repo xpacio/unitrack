@@ -836,22 +836,6 @@ body {
   color: var(--text-secondary);
 }
 
-.sync-icon {
-  display: inline-block;
-  font-size: 16px;
-  line-height: 1;
-  transition: transform 300ms ease;
-}
-
-.sync-icon.syncing {
-  animation: sync-spin 800ms linear infinite;
-}
-
-@keyframes sync-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
 .sync-pending {
   font-size: 11px;
   font-weight: 600;
@@ -864,15 +848,40 @@ body {
 
 .sync-pending.hidden { display: none; }
 
-.sync-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
-.sync-dot.online { background: var(--success); }
-.sync-dot.offline { background: var(--danger); }
+.status-indicator-circle {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transition: background 300ms ease;
+}
+
+.status-indicator-animated .status-indicator-circle {
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+.status-indicator-animated .status-indicator-circle:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.status-indicator-animated .status-indicator-circle:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.status-green .status-indicator-circle { background: var(--success); }
+.status-yellow .status-indicator-circle { background: #eab308; }
+.status-red .status-indicator-circle { background: var(--danger); }
+.status-blue .status-indicator-circle { background: var(--primary); }
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
 
 /* ─── Prioridad selector ─── */
 .priority-group {
@@ -1247,6 +1256,69 @@ body.mode-mobile .timeline::before { left: 12px; }
 body.mode-mobile .tl-day { padding-left: 36px; }
 
 body.mode-mobile .tl-day-marker { left: 4px; width: 16px; height: 16px; }
+
+/* ─── Clipboard Bar ─── */
+.clipboard-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--primary);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.clipboard-bar.hidden { display: none; }
+
+.clipboard-bar button {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: rgba(255,255,255,0.2);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition);
+}
+
+.clipboard-bar button:hover { background: rgba(255,255,255,0.3); }
+
+/* ─── Toast ─── */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 10px 20px;
+  background: var(--text);
+  color: white;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  opacity: 1;
+  transition: opacity 300ms ease;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.toast.toast-fade { opacity: 0; }
+
+body.mode-mobile .toast-container {
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
 
 /* ─── Landing / Auth ─── */
 #app.hidden { display: none; }

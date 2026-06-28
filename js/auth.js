@@ -68,6 +68,20 @@ export class Auth {
     return this.user;
   }
 
+  async changePassword(newPassword) {
+    const res = await fetch(`${this._authUrl}?action=change_password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ new_password: newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cambiar contraseña');
+    this.user = null;
+    this._notify();
+    return data;
+  }
+
   async logout() {
     try {
       await fetch(`${this._authUrl}?action=logout`, {

@@ -143,6 +143,23 @@ export class Store {
     this.sync();
   }
 
+  reparent(itemId, newParentId) {
+    if (itemId === newParentId) throw new Error('No puedes pegar en sí mismo');
+    const item = this.getById(itemId);
+    if (!item) throw new Error('Elemento no encontrado');
+    if (newParentId) {
+      const descendants = this.getDescendantIds(itemId);
+      if (descendants.includes(newParentId)) throw new Error('Crearía un ciclo');
+    }
+    item.parent_id = newParentId;
+    item.updated = Date.now();
+    this.items[this.items.findIndex(i => i.id === itemId)] = item;
+    this.save();
+    this._pendingCount++;
+    this._dispatchStatus();
+    this.sync();
+  }
+
   delete(id) {
     const descIds = this.getDescendantIds(id);
     const allIds = [id, ...descIds];

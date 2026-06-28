@@ -1,3 +1,5 @@
+import * as clipboard from '../clipboard.js';
+
 export class TimelineView {
   constructor(store, form, onTagClick) {
     this.store = store;
@@ -83,12 +85,16 @@ export class TimelineView {
       actions.innerHTML = `
         <button class="btn btn-primary" id="tl-edit-save">Guardar</button>
         <button class="btn btn-secondary" id="tl-edit-cancel">Cancelar</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-secondary" id="tl-edit-cut">✂ Cortar</button>
       `;
     } else {
       body.innerHTML = this.renderView(item);
+      const pegCnt = clipboard.getCutCount();
       actions.innerHTML = `
         <button class="btn btn-secondary" id="tl-detail-edit">✎ Editar</button>
         <button class="btn btn-danger" id="tl-detail-delete">🗑 Eliminar</button>
+        ${pegCnt > 0 ? `<button class="btn btn-secondary" id="tl-detail-paste">📄 Pegar ${pegCnt}</button>` : ''}
       `;
     }
 
@@ -108,6 +114,8 @@ export class TimelineView {
         actions.innerHTML = `
           <button class="btn btn-primary" id="tl-edit-save">Guardar</button>
           <button class="btn btn-secondary" id="tl-edit-cancel">Cancelar</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-secondary" id="tl-edit-cut">✂ Cortar</button>
         `;
         this.attachEditEvents(item);
       });
@@ -121,6 +129,16 @@ export class TimelineView {
           panel.classList.remove('open');
           this.render();
         }
+      });
+    }
+
+    const pasteBtn = actions.querySelector('#tl-detail-paste');
+    if (pasteBtn) {
+      pasteBtn.addEventListener('click', () => {
+        if (clipboard.getCutCount() === 0) return;
+        clipboard.pasteAll(item.id);
+        document.getElementById('detail-panel').classList.remove('open');
+        this.render();
       });
     }
 
@@ -187,6 +205,11 @@ export class TimelineView {
     });
 
     document.getElementById('tl-edit-cancel')?.addEventListener('click', () => {
+      this.openDetail(item);
+    });
+
+    document.getElementById('tl-edit-cut')?.addEventListener('click', () => {
+      clipboard.cutItem(item.id);
       this.openDetail(item);
     });
   }

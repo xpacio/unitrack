@@ -5,6 +5,7 @@ import { TaskView } from './views/taskView.js';
 import { NoteView } from './views/noteView.js';
 import { TimelineView } from './views/timelineView.js';
 import { FinanzaView } from './views/finanzaView.js';
+import * as clipboard from './clipboard.js';
 
 const auth = new Auth();
 let store = null;
@@ -19,6 +20,7 @@ const views = {};
 
 async function initApp() {
   store = new Store({ noSeed: true });
+  clipboard.init(store);
   form = new ItemForm(store, onSave);
 
   views.tasks = new TaskView(store, form, showTagResults);
@@ -264,14 +266,23 @@ function showTagResults(tag) {
 }
 
 function updateSyncIndicator(status) {
-  const icon = document.getElementById('sync-icon');
+  const indicator = document.getElementById('sync-dots');
   const pending = document.getElementById('sync-pending');
-  const dot = document.getElementById('sync-dot');
 
-  icon.classList.toggle('syncing', status.syncing);
   pending.textContent = status.pendingCount;
   pending.classList.toggle('hidden', status.pendingCount === 0);
-  dot.className = 'sync-dot ' + (status.online ? 'online' : 'offline');
+
+  indicator.classList.remove('status-green', 'status-yellow', 'status-red', 'status-blue', 'status-indicator-animated');
+
+  if (status.syncing) {
+    indicator.classList.add('status-blue', 'status-indicator-animated');
+  } else if (!status.online) {
+    indicator.classList.add('status-red');
+  } else if (status.pendingCount > 0) {
+    indicator.classList.add('status-yellow', 'status-indicator-animated');
+  } else {
+    indicator.classList.add('status-green', 'status-indicator-animated');
+  }
 
   const title = status.syncing ? 'Sincronizando…'
     : !status.online ? 'Sin conexión'
@@ -383,7 +394,8 @@ function initAuth() {
   document.getElementById('btn-logout').addEventListener('click', async () => {
     document.getElementById('modal-user').classList.remove('open');
     store?.destroy();
-    store?.clear();
+    localStorage.clear();
+    store = null;
     try {
       await auth.logout();
     } catch {}
@@ -395,6 +407,58 @@ function initAuth() {
     if (!confirm('¿Restablecer UniTrack? Se borrarán todos los datos locales y se cerrará tu sesión.')) return;
     await resetApp();
     location.reload();
+  });
+
+  const pwDisplay = document.getElementById('new-pw-display');
+  const pwModal = document.getElementById('modal-change-pw');
+
+  function generarPassword(len = 10) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+    let pwd = '';
+    for (let i = 0; i < len; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pwd;
+  }
+
+  document.getElementById('btn-change-pw')?.addEventListener('click', () => {
+    pwDisplay.textContent = generarPassword();
+    pwModal.classList.add('open');
+  });
+
+  document.getElementById('modal-change-pw-close')?.addEventListener('click', () => {
+    pwModal.classList.remove('open');
+  });
+  pwModal?.addEventListener('click', (e) => {
+    if (e.target === pwModal) pwModal.classList.remove('open');
+  });
+
+  document.getElementById('btn-gen-pw')?.addEventListener('click', () => {
+    pwDisplay.textContent = generarPassword();
+  });
+
+  document.getElementById('btn-save-pw')?.addEventListener('click', async () => {
+    const newPassword = pwDisplay.textContent;
+    if (!newPassword || newPassword.length < 6) {
+      alert('La clave debe tener al menos 6 caracteres.');
+      return;
+    }
+    try {
+      await auth.changePassword(newPassword);
+      pwModal.classList.remove('open');
+      document.getElementById('modal-user').classList.remove('open');
+      store?.destroy();
+      localStorage.clear();
+      store = null;
+      showAuth();
+      alert('Clave cambiada. Inicia sesión con tu nueva clave.');
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  document.getElementById('btn-cancel-pw')?.addEventListener('click', () => {
+    pwModal.classList.remove('open');
   });
 }
 

@@ -161,5 +161,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'me') {
   exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
+  if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'No autenticado']);
+    exit;
+  }
+
+  $body = json_decode(file_get_contents('php://input'), true);
+  $newPassword = $body['new_password'] ?? '';
+
+  if (strlen($newPassword) < 6) {
+    http_response_code(400);
+    echo json_encode(['error' => 'La contraseña debe tener al menos 6 caracteres']);
+    exit;
+  }
+
+  $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+  $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+  $stmt->execute([$hash, $_SESSION['user_id']]);
+
+  $userId = $_SESSION['user_id'];
+  $userEmail = $_SESSION['user_email'];
+  $userNombre = $_SESSION['user_nombre'];
+
+  $_SESSION = [];
+  setcookie(session_name(), '', [
+    'expires' => time() - 3600,
+    'path' => '/',
+    'httponly' => true,
+    'samesite' => 'Lax',
+    'secure' => $scheme === 'https',
+  ]);
+  session_destroy();
+
+  echo json_encode(['ok' => true]);
+  exit;
+}
+
 http_response_code(404);
 echo json_encode(['error' => 'Acción no válida']);

@@ -1,3 +1,5 @@
+import * as clipboard from '../clipboard.js';
+
 export class NoteView {
   constructor(store, form, onTagClick) {
     this.store = store;
@@ -142,9 +144,11 @@ export class NoteView {
 
     title.textContent = 'Nota';
     body.innerHTML = this.renderView(item);
+    const pegCnt = clipboard.getCutCount();
     actions.innerHTML = `
       <button class="btn btn-secondary" id="note-detail-edit">✎ Editar</button>
       <button class="btn btn-danger" id="note-detail-delete">🗑 Eliminar</button>
+      ${pegCnt > 0 ? `<button class="btn btn-secondary" id="note-detail-paste">📄 Pegar ${pegCnt}</button>` : ''}
     `;
     panel.classList.add('open');
 
@@ -159,6 +163,8 @@ export class NoteView {
       actions.innerHTML = `
         <button class="btn btn-primary" id="note-edit-save">Guardar</button>
         <button class="btn btn-secondary" id="note-edit-cancel">Cancelar</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-secondary" id="note-edit-cut">✂ Cortar</button>
       `;
       this.attachEditEvents(item);
     });
@@ -169,6 +175,13 @@ export class NoteView {
         panel.classList.remove('open');
         this.render();
       }
+    });
+
+    actions.querySelector('#note-detail-paste')?.addEventListener('click', () => {
+      if (clipboard.getCutCount() === 0) return;
+      clipboard.pasteAll(item.id);
+      document.getElementById('detail-panel').classList.remove('open');
+      this.render();
     });
   }
 
@@ -193,10 +206,12 @@ export class NoteView {
           </div>
         </div>` : ''}
     `;
+    const pegCnt = clipboard.getCutCount();
     actions.innerHTML = `
       <button class="btn btn-secondary" id="note-detail-edit">✎ Editar</button>
       <button class="btn btn-danger" id="note-detail-delete">🗑 Eliminar</button>
       <div style="flex:1"></div>
+      ${pegCnt > 0 ? `<button class="btn btn-secondary" id="note-detail-paste">📄 Pegar ${pegCnt}</button>` : ''}
       <button class="btn btn-primary" id="note-folder-add">+ Agregar aquí</button>
     `;
     panel.classList.add('open');
@@ -206,6 +221,8 @@ export class NoteView {
       actions.innerHTML = `
         <button class="btn btn-primary" id="note-edit-save">Guardar</button>
         <button class="btn btn-secondary" id="note-edit-cancel">Cancelar</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-secondary" id="note-edit-cut">✂ Cortar</button>
       `;
       this.attachEditEvents(item);
     });
@@ -216,6 +233,13 @@ export class NoteView {
         panel.classList.remove('open');
         this.render();
       }
+    });
+
+    actions.querySelector('#note-detail-paste')?.addEventListener('click', () => {
+      if (clipboard.getCutCount() === 0) return;
+      clipboard.pasteAll(item.id);
+      document.getElementById('detail-panel').classList.remove('open');
+      this.render();
     });
 
     actions.querySelector('#note-folder-add').addEventListener('click', () => {
@@ -278,6 +302,11 @@ export class NoteView {
     });
 
     document.getElementById('note-edit-cancel')?.addEventListener('click', () => {
+      this.openDetail(item);
+    });
+
+    document.getElementById('note-edit-cut')?.addEventListener('click', () => {
+      clipboard.cutItem(item.id);
       this.openDetail(item);
     });
   }

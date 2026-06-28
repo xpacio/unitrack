@@ -1,3 +1,5 @@
+import * as clipboard from '../clipboard.js';
+
 export class FinanzaView {
   constructor(store, form, onTagClick) {
     this.store = store;
@@ -165,9 +167,11 @@ export class FinanzaView {
       : 'Detalle';
 
     body.innerHTML = this.renderDetail(item);
+    const pegCnt = clipboard.getCutCount();
     actions.innerHTML = `
       <button class="btn btn-secondary" id="fz-detail-edit">✎ Editar</button>
       <button class="btn btn-danger" id="fz-detail-delete">🗑 Eliminar</button>
+      ${pegCnt > 0 ? `<button class="btn btn-secondary" id="fz-detail-paste">📄 Pegar ${pegCnt}</button>` : ''}
     `;
     panel.classList.add('open');
 
@@ -183,6 +187,8 @@ export class FinanzaView {
       actions.innerHTML = `
         <button class="btn btn-primary" id="fz-edit-save">Guardar</button>
         <button class="btn btn-secondary" id="fz-edit-cancel">Cancelar</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-secondary" id="fz-edit-cut">✂ Cortar</button>
       `;
       this.attachEditEvents(item);
     });
@@ -193,6 +199,13 @@ export class FinanzaView {
         panel.classList.remove('open');
         this.render();
       }
+    });
+
+    actions.querySelector('#fz-detail-paste')?.addEventListener('click', () => {
+      if (clipboard.getCutCount() === 0) return;
+      clipboard.pasteAll(item.id);
+      document.getElementById('detail-panel').classList.remove('open');
+      this.render();
     });
   }
 
@@ -332,6 +345,11 @@ export class FinanzaView {
     });
 
     document.getElementById('fz-edit-cancel')?.addEventListener('click', () => {
+      this.openDetail(item);
+    });
+
+    document.getElementById('fz-edit-cut')?.addEventListener('click', () => {
+      clipboard.cutItem(item.id);
       this.openDetail(item);
     });
   }

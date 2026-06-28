@@ -1,3 +1,5 @@
+import * as clipboard from '../clipboard.js';
+
 export class TaskView {
   constructor(store, form, onTagClick) {
     this.store = store;
@@ -137,10 +139,12 @@ export class TaskView {
       : this.esc(item.title);
 
     body.innerHTML = this.renderDetail(item);
+    const pegCnt = clipboard.getCutCount();
     actions.innerHTML = `
       <button class="btn btn-secondary" id="task-detail-edit">✎ Editar</button>
       <button class="btn btn-danger" id="task-detail-delete">🗑 Eliminar</button>
       <div style="flex:1"></div>
+      ${pegCnt > 0 ? `<button class="btn btn-secondary" id="task-detail-paste" data-action="paste">📄 Pegar ${pegCnt}</button>` : ''}
       <button class="btn btn-primary" id="task-detail-add-sub">+ Subtarea</button>
     `;
     panel.classList.add('open');
@@ -172,16 +176,18 @@ export class TaskView {
           </div>
         </div>` : ''}
     `;
+    const pegCnt = clipboard.getCutCount();
     actions.innerHTML = `
       <button class="btn btn-secondary" id="task-detail-edit">✎ Editar</button>
       <button class="btn btn-danger" id="task-detail-delete">🗑 Eliminar</button>
       <div style="flex:1"></div>
+      ${pegCnt > 0 ? `<button class="btn btn-secondary" id="task-detail-paste" data-action="paste">📄 Pegar ${pegCnt}</button>` : ''}
       <button class="btn btn-primary" id="task-detail-add-sub">+ Agregar aquí</button>
     `;
     panel.classList.add('open');
 
     this.attachPanelEvents(item);
-    this._attachFolderPanelEvents(item, children);
+    this._attachFolderPanelEvents(item);
   }
 
   _attachFolderPanelEvents(item) {
@@ -242,6 +248,8 @@ export class TaskView {
       actions.innerHTML = `
         <button class="btn btn-primary" id="task-edit-save">Guardar</button>
         <button class="btn btn-secondary" id="task-edit-cancel">Cancelar</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-secondary" id="task-edit-cut">✂ Cortar</button>
       `;
       this.attachEditEvents(item);
     });
@@ -252,6 +260,13 @@ export class TaskView {
         document.getElementById('detail-panel').classList.remove('open');
         this.render();
       }
+    });
+
+    actions.querySelector('#task-detail-paste')?.addEventListener('click', () => {
+      if (clipboard.getCutCount() === 0) return;
+      clipboard.pasteAll(item.id);
+      document.getElementById('detail-panel').classList.remove('open');
+      this.render();
     });
 
     actions.querySelector('#task-detail-add-sub')?.addEventListener('click', () => {
@@ -384,6 +399,11 @@ export class TaskView {
     });
 
     document.getElementById('task-edit-cancel')?.addEventListener('click', () => {
+      this.openDetail(item);
+    });
+
+    document.getElementById('task-edit-cut')?.addEventListener('click', () => {
+      clipboard.cutItem(item.id);
       this.openDetail(item);
     });
   }
