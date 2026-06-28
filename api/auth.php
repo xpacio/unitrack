@@ -161,6 +161,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'me') {
   exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'forgot_password') {
+  $body = json_decode(file_get_contents('php://input'), true);
+  $email = trim($body['email'] ?? '');
+
+  if (!$email) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Email requerido']);
+    exit;
+  }
+
+  $stmt = $pdo->prepare("SELECT id, nombre FROM users WHERE email = ?");
+  $stmt->execute([$email]);
+  $user = $stmt->fetch();
+
+  if ($user) {
+    $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+    $newPassword = '';
+    for ($i = 0; $i < 10; $i++) {
+      $newPassword .= $chars[random_int(0, strlen($chars) - 1)];
+    }
+
+    $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+    $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+    $stmt->execute([$hash, $user['id']]);
+
+    $subject = '=?UTF-8?B?' . base64_encode('UniTrack - Nueva clave') . '?=';
+    $message = "Hola {$user['nombre']},\r\n\r\n";
+    $message .= "Se ha generado una nueva clave para tu cuenta de UniTrack:\r\n\r\n";
+    $message .= "Clave: $newPassword\r\n\r\n";
+    $message .= "Inicia sesión y cámbiala en el panel de usuario.\r\n\r\n";
+    $message .= "— UniTrack";
+    $headers = "From: UniTrack <jose@alvar3z.nl>\r\n";
+    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    mail($email, $subject, $message, $headers);
+  }
+
+  echo json_encode(['ok' => true]);
+  exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
   if (!isset($_SESSION['user_id'])) {
     http_response_code(401);

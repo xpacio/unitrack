@@ -460,6 +460,46 @@ function initAuth() {
   document.getElementById('btn-cancel-pw')?.addEventListener('click', () => {
     pwModal.classList.remove('open');
   });
+
+  const forgotSection = document.getElementById('forgot-section');
+  const forgotEmail = document.getElementById('forgot-email');
+  const forgotError = document.getElementById('forgot-error');
+  const forgotOk = document.getElementById('forgot-ok');
+
+  document.getElementById('btn-forgot-pw')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    forgotSection.classList.toggle('hidden');
+    if (!forgotSection.classList.contains('hidden')) {
+      forgotEmail.value = '';
+      forgotError.textContent = '';
+      forgotOk.classList.add('hidden');
+      forgotEmail.focus();
+    }
+  });
+
+  document.getElementById('btn-forgot-send')?.addEventListener('click', async () => {
+    const email = forgotEmail.value.trim();
+    if (!email) {
+      forgotError.textContent = 'Ingresa tu email';
+      return;
+    }
+    forgotError.textContent = '';
+    document.getElementById('btn-forgot-send').disabled = true;
+    try {
+      const res = await fetch('/api/auth.php?action=forgot_password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      await res.json();
+      forgotOk.classList.remove('hidden');
+      forgotEmail.value = '';
+    } catch {
+      forgotError.textContent = 'Error de conexión';
+    } finally {
+      document.getElementById('btn-forgot-send').disabled = false;
+    }
+  });
 }
 
 async function onAuthenticated() {
