@@ -117,6 +117,13 @@ function showApp() {
 function showAuth() {
   document.getElementById('app').classList.add('hidden');
   document.getElementById('view-auth').classList.remove('hidden');
+  document.getElementById('view-reset-pw').classList.add('hidden');
+}
+
+function showResetPw() {
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('view-auth').classList.add('hidden');
+  document.getElementById('view-reset-pw').classList.remove('hidden');
 }
 
 function getActiveView() {
@@ -484,20 +491,40 @@ function initAuth() {
       return;
     }
     forgotError.textContent = '';
-    document.getElementById('btn-forgot-send').disabled = true;
+    const btn = document.getElementById('btn-forgot-send');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
     try {
       const res = await fetch('/api/auth.php?action=forgot_password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      await res.json();
-      forgotOk.classList.remove('hidden');
-      forgotEmail.value = '';
+      const data = await res.json();
+      if (res.status === 429 && data.retry_after) {
+        let secs = data.retry_after;
+        forgotError.textContent = `Espera ${secs}s antes de reintentar`;
+        const iv = setInterval(() => {
+          secs--;
+          if (secs <= 0) {
+            clearInterval(iv);
+            forgotError.textContent = '';
+            btn.disabled = false;
+            btn.textContent = 'Enviar nueva clave';
+          } else {
+            forgotError.textContent = `Espera ${secs}s antes de reintentar`;
+          }
+        }, 1000);
+      } else {
+        forgotOk.classList.remove('hidden');
+        forgotEmail.value = '';
+        btn.disabled = false;
+        btn.textContent = 'Enviar nueva clave';
+      }
     } catch {
       forgotError.textContent = 'Error de conexión';
-    } finally {
-      document.getElementById('btn-forgot-send').disabled = false;
+      btn.disabled = false;
+      btn.textContent = 'Enviar nueva clave';
     }
   });
 }
@@ -543,7 +570,98 @@ window.addEventListener('auth-required', async () => {
   showAuth();
 });
 
+function escAttr(s) {
+  if (typeof s !== 'string') return '';
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function handleResetToken(token) {
+  showResetPw();
+  const body = document.getElementById('reset-pw-body');
+  body.innerHTML = '<p style="text-align:center;color:var(--text-muted);">Verificando token...</p>';
+  try {
+    const res = await fetch('/api/auth.php?action=verify_reset_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      body.innerHTML = `
+        <div style="text-align:center;">
+          <div style="font-size:40px;margin-bottom:12px;">🔗</div>
+          <p style="color:var(--danger);font-weight:500;">${escAttr(data.error || 'Token inválido')}</p>
+          <p style="font-size:13px;color:var(--text-muted);margin-top:8px;">
+            <a href="/" style="color:var(--primary);">Volver al inicio</a>
+          </p>
+        </div>`;
+      return;
+    }
+    const nombre = escAttr(data.user.nombre || data.user.email);
+    body.innerHTML = `
+      <div style="text-align:center;margin-bottom:16px;">
+        <div style="font-size:14px;color:var(--text-secondary);">Hola <strong>${nombre}</strong>, ingresa tu nueva clave</div>
+      </div>
+      <div class="auth-field" style="margin-bottom:8px;">
+        <label for="reset-password">Nueva contraseña</label>
+        <input type="password" id="reset-password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" required>
+      </div>
+      <div class="auth-error" id="reset-error"></div>
+      <button class="auth-btn" id="btn-reset-save" style="margin-top:4px;">Guardar nueva clave</button>
+      <div style="text-align:center;margin-top:8px;">
+        <a href="/" style="font-size:12px;color:var(--text-muted);">Cancelar</a>
+      </div>`;
+
+    document.getElementById('btn-reset-save')?.addEventListener('click', async () => {
+      const pw = document.getElementById('reset-password').value;
+      const errEl = document.getElementById('reset-error');
+      if (!pw || pw.length < 6) {
+        errEl.textContent = 'Mínimo 6 caracteres';
+        return;
+      }
+      errEl.textContent = '';
+      document.getElementById('btn-reset-save').disabled = true;
+      try {
+        const r2 = await fetch('/api/auth.php?action=reset_password_with_token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, new_password: pw }),
+        });
+        const d2 = await r2.json();
+        if (!r2.ok) {
+          errEl.textContent = d2.error || 'Error';
+          document.getElementById('btn-reset-save').disabled = false;
+          return;
+        }
+        history.replaceState(null, '', '/');
+        showAuth();
+        alert('Clave actualizada. Inicia sesión con tu nueva clave.');
+      } catch {
+        errEl.textContent = 'Error de conexión';
+        document.getElementById('btn-reset-save').disabled = false;
+      }
+    });
+  } catch {
+    body.innerHTML = `
+      <div style="text-align:center;">
+        <p style="color:var(--danger);font-weight:500;">Error de conexión</p>
+        <p style="font-size:13px;color:var(--text-muted);margin-top:8px;">
+          <a href="/" style="color:var(--primary);">Volver al inicio</a>
+        </p>
+      </div>`;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  const params = new URLSearchParams(window.location.search);
+  const resetToken = params.get('reset_token');
+
+  if (resetToken) {
+    initAuth();
+    await handleResetToken(resetToken);
+    return;
+  }
+
   initAuth();
   const user = await auth.checkSession();
   if (user) {

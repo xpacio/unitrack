@@ -171,31 +171,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'forgot_password') {
     exit;
   }
 
-  $stmt = $pdo->prepare("SELECT id, nombre FROM users WHERE email = ?");
+  $stmt = $pdo->prepare("SELECT id, nombre, reset_token_at FROM users WHERE email = ?");
   $stmt->execute([$email]);
   $user = $stmt->fetch();
 
+  $now = round(microtime(true) * 1000);
+
   if ($user) {
-    $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-    $newPassword = '';
-    for ($i = 0; $i < 10; $i++) {
-      $newPassword .= $chars[random_int(0, strlen($chars) - 1)];
+    $elapsed = $now - (int) $user['reset_token_at'];
+    if ($elapsed < 180000) {
+      $retryAfter = (int) ceil((180000 - $elapsed) / 1000);
+      http_response_code(429);
+      echo json_encode(['error' => 'Espera antes de solicitar otra clave', 'retry_after' => $retryAfter]);
+      exit;
     }
 
-    $hash = password_hash($newPassword, PASSWORD_BCRYPT);
-    $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-    $stmt->execute([$hash, $user['id']]);
+    $token = bin2hex(random_bytes(32));
+    $stmt = $pdo->prepare("UPDATE users SET reset_token = ?, reset_token_at = ? WHERE id = ?");
+    $stmt->execute([$token, $now, $user['id']]);
 
-    $subject = '=?UTF-8?B?' . base64_encode('UniTrack - Nueva clave') . '?=';
+    $resetLink = ($scheme === 'https' ? 'https' : 'http') . "://{$host}/?reset_token={$token}";
+    $subject = '=?UTF-8?B?' . base64_encode('UniTrack - Recuperar acceso') . '?=';
     $message = "Hola {$user['nombre']},\r\n\r\n";
-    $message .= "Se ha generado una nueva clave para tu cuenta de UniTrack:\r\n\r\n";
-    $message .= "Clave: $newPassword\r\n\r\n";
-    $message .= "Inicia sesión y cámbiala en el panel de usuario.\r\n\r\n";
+    $message .= "Recibiste este correo porque solicitaste recuperar el acceso a UniTrack.\r\n\r\n";
+    $message .= "Haz clic en el siguiente enlace para restablecer tu clave:\r\n\r\n";
+    $message .= "$resetLink\r\n\r\n";
+    $message .= "Este enlace expira en 15 minutos.\r\n\r\n";
+    $message .= "Si no solicitaste este cambio, ignora este mensaje.\r\n\r\n";
     $message .= "— UniTrack";
     $headers = "From: UniTrack <jose@alvar3z.nl>\r\n";
     $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
     mail($email, $subject, $message, $headers);
   }
+
+  echo json_encode(['ok' => true]);
+  exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'verify_reset_token') {
+  $body = json_decode(file_get_contents('php://input'), true);
+  $token = $body['token'] ?? '';
+
+  if (strlen($token) !== 64) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Token inválido']);
+    exit;
+  }
+
+  $stmt = $pdo->prepare("SELECT id, email, nombre, reset_token_at FROM users WHERE reset_token = ?");
+  $stmt->execute([$token]);
+  $user = $stmt->fetch();
+
+  if (!$user) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Token inválido o ya usado']);
+    exit;
+  }
+
+  $now = round(microtime(true) * 1000);
+  $elapsed = $now - (int) $user['reset_token_at'];
+
+  if ($elapsed > 900000) {
+    http_response_code(400);
+    echo json_encode(['error' => 'El token ha expirado (15 min). Solicita uno nuevo.']);
+    exit;
+  }
+
+  echo json_encode(['user' => ['email' => $user['email'], 'nombre' => $user['nombre']]]);
+  exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'reset_password_with_token') {
+  $body = json_decode(file_get_contents('php://input'), true);
+  $token = $body['token'] ?? '';
+  $newPassword = $body['new_password'] ?? '';
+
+  if (strlen($token) !== 64) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Token inválido']);
+    exit;
+  }
+
+  if (strlen($newPassword) < 6) {
+    http_response_code(400);
+    echo json_encode(['error' => 'La contraseña debe tener al menos 6 caracteres']);
+    exit;
+  }
+
+  $stmt = $pdo->prepare("SELECT id, reset_token_at FROM users WHERE reset_token = ?");
+  $stmt->execute([$token]);
+  $user = $stmt->fetch();
+
+  if (!$user) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Token inválido o ya usado']);
+    exit;
+  }
+
+  $now = round(microtime(true) * 1000);
+  $elapsed = $now - (int) $user['reset_token_at'];
+
+  if ($elapsed > 900000) {
+    http_response_code(400);
+    echo json_encode(['error' => 'El token ha expirado. Solicita uno nuevo.']);
+    exit;
+  }
+
+  $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+  $stmt = $pdo->prepare("UPDATE users SET password = ?, reset_token = NULL, reset_token_at = 0 WHERE id = ?");
+  $stmt->execute([$hash, $user['id']]);
 
   echo json_encode(['ok' => true]);
   exit;
