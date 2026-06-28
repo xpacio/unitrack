@@ -192,16 +192,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'forgot_password') {
 
     $resetLink = ($scheme === 'https' ? 'https' : 'http') . "://{$host}/?reset_token={$token}";
     $subject = '=?UTF-8?B?' . base64_encode('UniTrack - Recuperar acceso') . '?=';
-    $message = "Hola {$user['nombre']},\r\n\r\n";
-    $message .= "Recibiste este correo porque solicitaste recuperar el acceso a UniTrack.\r\n\r\n";
-    $message .= "Haz clic en el siguiente enlace para restablecer tu clave:\r\n\r\n";
-    $message .= "$resetLink\r\n\r\n";
-    $message .= "Este enlace expira en 15 minutos.\r\n\r\n";
-    $message .= "Si no solicitaste este cambio, ignora este mensaje.\r\n\r\n";
-    $message .= "— UniTrack";
+    $nameHtml = htmlspecialchars($user['nombre'], ENT_QUOTES, 'UTF-8');
+    $message = "<!DOCTYPE html><html><body style=\"font-family:sans-serif;padding:24px;color:#333;\">";
+    $message .= "<h2 style=\"color:#4361ee;\">UniTrack</h2>";
+    $message .= "<p>Hola <strong>{$nameHtml}</strong>,</p>";
+    $message .= "<p>Recibiste este correo porque solicitaste recuperar el acceso a UniTrack.</p>";
+    $message .= "<p style=\"margin:20px 0;\"><a href=\"{$resetLink}\" style=\"display:inline-block;padding:12px 24px;background:#4361ee;color:white;text-decoration:none;border-radius:6px;font-weight:600;\">Restablecer clave</a></p>";
+    $message .= "<p>O copia este enlace en tu navegador:</p>";
+    $message .= "<p style=\"font-size:13px;color:#666;word-break:break-all;\">{$resetLink}</p>";
+    $message .= "<p style=\"font-size:13px;color:#999;\">Este enlace expira en 15 minutos. Si no solicitaste este cambio, ignora este mensaje.</p>";
+    $message .= "<p style=\"font-size:13px;color:#999;\">— UniTrack</p>";
+    $message .= "</body></html>";
     $headers = "From: UniTrack <jose@alvar3z.nl>\r\n";
     $headers .= "Reply-To: jose@alvar3z.nl\r\n";
-    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
     $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
     $headers .= "MIME-Version: 1.0\r\n";
     mail($email, $subject, $message, $headers);
