@@ -7,6 +7,7 @@ export class FinanzaView {
     this.form = form;
     this.onTagClick = onTagClick;
     this.container = document.getElementById('view-finanzas');
+    this._delegateEvents();
     this.render();
   }
 
@@ -31,7 +32,6 @@ export class FinanzaView {
 
     html += `</div>`;
     this.container.innerHTML = html;
-    this.attachEvents();
   }
 
   renderResumen(totales) {
@@ -132,7 +132,7 @@ export class FinanzaView {
     return html;
   }
 
-  attachEvents() {
+  _delegateEvents() {
     this.container.addEventListener('click', (e) => {
       const tag = e.target.closest('.tag-clickable');
       if (tag && this.onTagClick) {
@@ -162,9 +162,156 @@ export class FinanzaView {
         if (item) this.openDetail(item);
       }
     });
+
+    const panel = document.getElementById('detail-panel');
+    panel.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const id = btn.id;
+      const item = this._currentDetailItem;
+      if (!item) return;
+      const body = document.getElementById('panel-body');
+      const actions = document.getElementById('panel-actions');
+
+      if (id === 'fz-detail-edit') {
+        body.innerHTML = this.renderDetailEdit(item);
+        actions.innerHTML = `
+          <button class="btn btn-primary" id="fz-edit-save">Guardar</button>
+          <button class="btn btn-secondary" id="fz-edit-cancel">Cancelar</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-secondary" id="fz-edit-cut">✂ Cortar</button>
+        `;
+        return;
+      }
+
+      if (id === 'fz-detail-delete') {
+        if (confirm('¿Eliminar este elemento?')) {
+          this.store.delete(item.id);
+          panel.classList.remove('open');
+          this.render();
+        }
+        return;
+      }
+
+      if (id === 'fz-detail-paste') {
+        if (clipboard.getCutCount() === 0) return;
+        clipboard.pasteAll(item.id);
+        panel.classList.remove('open');
+        this.render();
+        return;
+      }
+
+      if (id === 'fz-edit-save') {
+        this._saveDetailEdit();
+        return;
+      }
+
+      if (id === 'fz-edit-cancel') {
+        this.openDetail(item);
+        return;
+      }
+
+      if (id === 'fz-edit-cut') {
+        clipboard.cutItem(item.id);
+        this.openDetail(item);
+        return;
+      }
+
+      if (id === 'fz-detail-pay') {
+        this.store.paySubscription(item);
+        this.openDetail(item);
+        return;
+      }
+
+      if (id === 'fz-edit-md-help') {
+        document.getElementById('modal-md').classList.add('open');
+        return;
+      }
+    });
+
+    document.getElementById('panel-body').addEventListener('click', (e) => {
+      const tag = e.target.closest('.tag-clickable');
+      if (tag && this.onTagClick) {
+        e.stopPropagation();
+        this.onTagClick(tag.dataset.tag);
+        return;
+      }
+
+      if (e.target.id === 'fz-prod-add') {
+        const tbody = document.querySelector('#fz-prod-table tbody');
+        if (!tbody) return;
+        const tr = document.createElement('tr');
+        tr.className = 'fz-product-row';
+        tr.innerHTML = `
+          <td><input class="fz-prod-nombre" type="text" placeholder="Producto" style="width:100%;"></td>
+          <td><input class="fz-prod-cantidad" type="number" min="1" value="1" style="width:60px;"></td>
+          <td><input class="fz-prod-precio" type="number" step="0.01" min="0" value="0" style="width:90px;"></td>
+          <td><button class="btn btn-danger fz-prod-remove" style="padding:2px 8px;font-size:12px;">×</button></td>
+        `;
+        tbody.appendChild(tr);
+        tr.querySelector('.fz-prod-nombre').focus();
+        return;
+      }
+
+      const removeBtn = e.target.closest('.fz-prod-remove');
+      if (removeBtn) {
+        const row = removeBtn.closest('.fz-product-row');
+        if (row) row.remove();
+        return;
+      }
+    });
+  }
+
+  _saveDetailEdit() {
+    const item = this._currentDetailItem;
+    const title = document.getElementById('fz-edit-title')?.value.trim();
+    if (!title) { alert('El título es obligatorio'); return; }
+    item.title = title;
+    item.content = document.getElementById('fz-edit-content')?.value || '';
+    const tagsRaw = document.getElementById('fz-edit-tags')?.value || '';
+    item.tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+
+    if (item.type === 'suscripcion' || item.type === 'gasto' || item.type === 'ahorro') {
+      item.monto = parseFloat(document.getElementById('fz-edit-monto')?.value) || 0;
+    }
+    if (item.type === 'suscripcion') {
+      item.periodicidad = document.getElementById('fz-edit-periodicidad')?.value || 'mensual';
+      item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
+      item.estado = document.getElementById('fz-edit-estado')?.value || 'activa';
+    }
+    if (item.type === 'gasto') {
+      item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
+      item.estado = document.getElementById('fz-edit-estado')?.value || 'pendiente';
+      item.productos = this._gatherProductosFromEdit();
+      if (item.productos && item.productos.length > 0) {
+        item.monto = item.productos.reduce((sum, p) => sum + (p.cantidad * p.precio_unitario), 0);
+      }
+    }
+    if (item.type === 'ahorro') {
+      item.meta = parseFloat(document.getElementById('fz-edit-meta')?.value) || 0;
+      item.acumulado = parseFloat(document.getElementById('fz-edit-acumulado')?.value) || 0;
+    }
+
+    this.store.update(item);
+    this.openDetail(item);
+  }
+
+  _gatherProductosFromEdit() {
+    const rows = document.querySelectorAll('.fz-product-row');
+    const productos = [];
+    for (const row of rows) {
+      const nombre = row.querySelector('.fz-prod-nombre')?.value.trim();
+      const cantidad = parseFloat(row.querySelector('.fz-prod-cantidad')?.value) || 1;
+      const precio = parseFloat(row.querySelector('.fz-prod-precio')?.value) || 0;
+      if (nombre) {
+        productos.push({ nombre, cantidad, precio_unitario: precio });
+      }
+    }
+    return productos;
   }
 
   openDetail(item) {
+    this._currentDetailItem = item;
     const panel = document.getElementById('detail-panel');
     const body = document.getElementById('panel-body');
     const title = document.getElementById('panel-title');
@@ -184,39 +331,6 @@ export class FinanzaView {
       ${pegCnt > 0 ? `<button class="btn btn-secondary" id="fz-detail-paste">📄 Pegar ${pegCnt}</button>` : ''}
     `;
     panel.classList.add('open');
-
-    body.querySelectorAll('.tag-clickable').forEach(el => {
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (this.onTagClick) this.onTagClick(el.dataset.tag);
-      });
-    });
-
-    actions.querySelector('#fz-detail-edit')?.addEventListener('click', () => {
-      body.innerHTML = this.renderDetailEdit(item);
-      actions.innerHTML = `
-        <button class="btn btn-primary" id="fz-edit-save">Guardar</button>
-        <button class="btn btn-secondary" id="fz-edit-cancel">Cancelar</button>
-        <div style="flex:1"></div>
-        <button class="btn btn-secondary" id="fz-edit-cut">✂ Cortar</button>
-      `;
-      this.attachEditEvents(item);
-    });
-
-    actions.querySelector('#fz-detail-delete')?.addEventListener('click', () => {
-      if (confirm('¿Eliminar este elemento?')) {
-        this.store.delete(item.id);
-        panel.classList.remove('open');
-        this.render();
-      }
-    });
-
-    actions.querySelector('#fz-detail-paste')?.addEventListener('click', () => {
-      if (clipboard.getCutCount() === 0) return;
-      clipboard.pasteAll(item.id);
-      document.getElementById('detail-panel').classList.remove('open');
-      this.render();
-    });
   }
 
   renderDetail(item) {
@@ -234,18 +348,12 @@ export class FinanzaView {
         <div class="panel-field"><label>Próximo pago</label><div style="color:${vencida ? 'var(--danger)' : 'var(--text-secondary)'};font-weight:${vencida ? '600' : '400'};">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'} ${vencida ? '⏰ Vencida' : ''}</div></div>
         ${vencida ? `<div style="margin-top:12px;"><button class="btn btn-primary" id="fz-detail-pay" style="width:100%;">Pagar $${this.fmt(item.monto)}</button></div>` : ''}
       `;
-      if (vencida) {
-        setTimeout(() => {
-          document.getElementById('fz-detail-pay')?.addEventListener('click', () => {
-            this.store.paySubscription(item);
-            this.openDetail(item);
-          });
-        }, 0);
-      }
     } else if (item.type === 'gasto') {
+      const prodHtml = this._renderProductosTable(item.productos);
       extra = `
         <div class="panel-field"><label>Monto</label><div style="font-weight:600;font-size:18px;">$${this.fmt(item.monto)}</div></div>
         <div class="panel-field"><label>Fecha</label><div class="panel-value-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</div></div>
+        ${prodHtml}
       `;
     } else if (item.type === 'ahorro') {
       const pct = item.meta > 0 ? Math.min(100, Math.round((item.acumulado || 0) / item.meta * 100)) : 0;
@@ -298,6 +406,17 @@ export class FinanzaView {
         </div>`;
     }
     if (item.type === 'gasto') {
+      let prodRows = '';
+      const productos = item.productos || [];
+      for (let i = 0; i < productos.length; i++) {
+        const p = productos[i];
+        prodRows += `<tr class="fz-product-row">
+          <td><input class="fz-prod-nombre" type="text" value="${this.esc(p.nombre)}" placeholder="Producto" style="width:100%;"></td>
+          <td><input class="fz-prod-cantidad" type="number" min="1" value="${p.cantidad || 1}" style="width:60px;"></td>
+          <td><input class="fz-prod-precio" type="number" step="0.01" min="0" value="${p.precio_unitario || 0}" style="width:90px;"></td>
+          <td><button class="btn btn-danger fz-prod-remove" style="padding:2px 8px;font-size:12px;">×</button></td>
+        </tr>`;
+      }
       extraFields += `
         <div class="panel-field"><label>Fecha</label><input id="fz-edit-fecha" type="date" value="${item.fecha_inicio || ''}"></div>
         <div class="panel-field"><label>Estado</label>
@@ -305,6 +424,13 @@ export class FinanzaView {
             <option value="pendiente" ${item.estado === 'pendiente' || !item.estado ? 'selected' : ''}>Pendiente</option>
             <option value="pagado" ${item.estado === 'pagado' ? 'selected' : ''}>Pagado</option>
           </select>
+        </div>
+        <div class="panel-field"><label>Productos</label>
+          <table class="fz-prod-table" id="fz-prod-table">
+            <thead><tr><th>Producto</th><th>Cant.</th><th>P.U.</th><th></th></tr></thead>
+            <tbody>${prodRows}</tbody>
+          </table>
+          <button class="btn btn-secondary" id="fz-prod-add" style="font-size:12px;margin-top:4px;">+ Agregar producto</button>
         </div>`;
     }
     if (item.type === 'ahorro') {
@@ -334,48 +460,24 @@ export class FinanzaView {
     `;
   }
 
-  attachEditEvents(item) {
-    document.getElementById('fz-edit-md-help')?.addEventListener('click', () => {
-      document.getElementById('modal-md').classList.add('open');
-    });
-
-    document.getElementById('fz-edit-save')?.addEventListener('click', () => {
-      const title = document.getElementById('fz-edit-title')?.value.trim();
-      if (!title) { alert('El título es obligatorio'); return; }
-      item.title = title;
-      item.content = document.getElementById('fz-edit-content')?.value || '';
-      const tagsRaw = document.getElementById('fz-edit-tags')?.value || '';
-      item.tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
-
-      if (item.type === 'suscripcion' || item.type === 'gasto' || item.type === 'ahorro') {
-        item.monto = parseFloat(document.getElementById('fz-edit-monto')?.value) || 0;
-      }
-      if (item.type === 'suscripcion') {
-        item.periodicidad = document.getElementById('fz-edit-periodicidad')?.value || 'mensual';
-        item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
-        item.estado = document.getElementById('fz-edit-estado')?.value || 'activa';
-      }
-      if (item.type === 'gasto') {
-        item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
-        item.estado = document.getElementById('fz-edit-estado')?.value || 'pendiente';
-      }
-      if (item.type === 'ahorro') {
-        item.meta = parseFloat(document.getElementById('fz-edit-meta')?.value) || 0;
-        item.acumulado = parseFloat(document.getElementById('fz-edit-acumulado')?.value) || 0;
-      }
-
-      this.store.update(item);
-      this.openDetail(item);
-    });
-
-    document.getElementById('fz-edit-cancel')?.addEventListener('click', () => {
-      this.openDetail(item);
-    });
-
-    document.getElementById('fz-edit-cut')?.addEventListener('click', () => {
-      clipboard.cutItem(item.id);
-      this.openDetail(item);
-    });
+  _renderProductosTable(productos) {
+    if (!productos || productos.length === 0) return '';
+    let rows = '';
+    for (const p of productos) {
+      const subtotal = (p.cantidad || 1) * (p.precio_unitario || 0);
+      rows += `<tr>
+        <td>${this.esc(p.nombre)}</td>
+        <td style="text-align:center;">${p.cantidad || 1}</td>
+        <td style="text-align:right;">$${this.fmt(p.precio_unitario || 0)}</td>
+        <td style="text-align:right;font-weight:600;">$${this.fmt(subtotal)}</td>
+      </tr>`;
+    }
+    return `
+      <div class="panel-field"><label>Productos</label>
+      <table class="fz-prod-table">
+        <thead><tr><th>Producto</th><th>Cant.</th><th>P.U.</th><th>Subtotal</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
   }
 
   countdown(dateStr) {

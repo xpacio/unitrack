@@ -63,6 +63,7 @@ async function initApp() {
   });
 
   document.getElementById('btn-mode-toggle')?.addEventListener('click', toggleMode);
+  document.getElementById('btn-storage-toggle')?.addEventListener('click', toggleStorageMode);
 
   document.getElementById('panel-close').addEventListener('click', () => {
     document.getElementById('detail-panel').classList.remove('open');
@@ -327,6 +328,36 @@ function toggleMode() {
   applyMode(next);
 }
 
+function applyStorageMode() {
+  const mode = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
+  const btn = document.getElementById('btn-storage-toggle');
+  if (btn) {
+    btn.title = mode === 'online_first'
+      ? 'Modo online-first — los datos se guardan en el servidor'
+      : 'Modo offline-first — los datos se guardan localmente';
+    btn.classList.toggle('active', mode === 'online_first');
+  }
+}
+
+function toggleStorageMode() {
+  const current = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
+  const next = current === 'offline_first' ? 'online_first' : 'offline_first';
+  localStorage.setItem('unitrack_storage_mode', next);
+  if (store) {
+    store.setStorageMode(next);
+    if (next === 'online_first') {
+      store.sync().then(() => {
+        currentView?.render();
+        updateSyncIndicator(store.getSyncStatus());
+      });
+    } else {
+      currentView?.render();
+      updateSyncIndicator(store.getSyncStatus());
+    }
+  }
+  applyStorageMode();
+}
+
 window.matchMedia('(max-width: 640px)').addEventListener('change', (e) => {
   if (!localStorage.getItem('unitrack_mode')) {
     applyMode(e.matches ? 'mobile' : 'desktop');
@@ -449,6 +480,7 @@ function initAuth() {
     pwDisplay.textContent = generarPassword();
   });
 
+  applyStorageMode();
   document.getElementById('btn-save-pw')?.addEventListener('click', async () => {
     const newPassword = pwDisplay.textContent;
     if (!newPassword || newPassword.length < 6) {

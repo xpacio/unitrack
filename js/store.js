@@ -17,6 +17,7 @@ export function createItem(data = {}) {
     periodicidad: data.periodicidad || null,
     meta: data.meta ?? 0,
     acumulado: data.acumulado ?? 0,
+    productos: data.productos || [],
     created: Date.now(),
     updated: Date.now(),
   };
@@ -30,8 +31,13 @@ export class Store {
     this._pendingCount = 0;
     this._lastSyncAt = 0;
     this._online = navigator.onLine;
-    this.load();
-    if (this.items.length === 0 && !options.noSeed) this.seed();
+    this._storageMode = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
+    if (this._storageMode === 'online_first') {
+      this._pendingCount = 0;
+    } else {
+      this.load();
+      if (this.items.length === 0 && !options.noSeed) this.seed();
+    }
     this.startAutoSync();
     this._initOnlineListeners();
   }
@@ -63,6 +69,7 @@ export class Store {
   }
 
   load() {
+    if (this._storageMode === 'online_first') return;
     try {
       const raw = localStorage.getItem('unified_items');
       this.items = raw ? JSON.parse(raw) : [];
@@ -72,7 +79,21 @@ export class Store {
   }
 
   save() {
+    if (this._storageMode === 'online_first') return;
     localStorage.setItem('unified_items', JSON.stringify(this.items));
+  }
+
+  setStorageMode(mode) {
+    this._storageMode = mode;
+    localStorage.setItem('unitrack_storage_mode', mode);
+    if (mode === 'online_first') {
+      this.items = [];
+      this._pendingCount = 0;
+      localStorage.removeItem('unified_items');
+    } else {
+      this.load();
+    }
+    this._dispatchStatus();
   }
 
   clear() {
@@ -131,7 +152,11 @@ export class Store {
     this.save();
     this._pendingCount++;
     this._dispatchStatus();
-    this.sync();
+    if (this._storageMode === 'online_first') {
+      this.sync().catch(() => {});
+    } else {
+      this.sync();
+    }
   }
 
   update(item) {
@@ -142,7 +167,11 @@ export class Store {
     this.save();
     this._pendingCount++;
     this._dispatchStatus();
-    this.sync();
+    if (this._storageMode === 'online_first') {
+      this.sync().catch(() => {});
+    } else {
+      this.sync();
+    }
   }
 
   reparent(itemId, newParentId) {
@@ -177,7 +206,11 @@ export class Store {
     this.save();
     this._pendingCount++;
     this._dispatchStatus();
-    this.sync();
+    if (this._storageMode === 'online_first') {
+      this.sync().catch(() => {});
+    } else {
+      this.sync();
+    }
   }
 
   async sync() {
@@ -369,7 +402,7 @@ export class Store {
     intDate.setDate(intDate.getDate() - 5);
     add({ type: 'suscripcion', title: 'Internet TotalPlay', content: '300mb fibra óptica', monto: 899, periodicidad: 'mensual', fecha_inicio: mesStr(intDate), tags: ['servicios'], estado: 'activa' });
     add({ type: 'suscripcion', title: 'Seguro auto', content: 'Seguro cobertura amplia', monto: 2400, periodicidad: 'bimestral', fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1)), tags: ['seguros'], estado: 'activa' });
-    add({ type: 'gasto', title: 'Supermercado Soriana', content: 'Despensa quincenal', monto: 1250, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), tags: ['alimentacion'] });
+    add({ type: 'gasto', title: 'Supermercado Soriana', content: 'Despensa quincenal', monto: 1250, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), tags: ['alimentacion'], productos: [{ nombre: 'Leche', cantidad: 2, precio_unitario: 25.50 }, { nombre: 'Pan Bimbo', cantidad: 1, precio_unitario: 45.00 }, { nombre: 'Arroz', cantidad: 3, precio_unitario: 18.90 }, { nombre: 'Huevos', cantidad: 2, precio_unitario: 32.00 }] });
     add({ type: 'gasto', title: 'Gasolina', content: 'Tanque lleno', monto: 850, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 3)), tags: ['transporte'] });
     add({ type: 'ahorro', title: 'Fondo de emergencia', content: 'Meta $50,000 para imprevistos', monto: 50000, meta: 50000, acumulado: 8500, tags: ['meta'] });
     add({ type: 'ahorro', title: 'Viaje fin de año', content: 'Ahorro para vacaciones diciembre', monto: 15000, meta: 15000, acumulado: 3200, tags: ['personal'] });

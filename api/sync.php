@@ -60,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   $pdo->beginTransaction();
   try {
-    $insertSql = "INSERT INTO items (id, type, title, content, parent_id, tags, priority, fecha_inicio, fecha_fin, estado, created, updated, monto, periodicidad, meta, acumulado, user_id)
-                  VALUES (:id, :type, :title, :content, :parent_id, :tags, :priority, :fecha_inicio, :fecha_fin, :estado, :created, :updated, :monto, :periodicidad, :meta, :acumulado, :user_id)
+    $insertSql = "INSERT INTO items (id, type, title, content, parent_id, tags, priority, fecha_inicio, fecha_fin, estado, created, updated, monto, periodicidad, meta, acumulado, productos, user_id)
+                  VALUES (:id, :type, :title, :content, :parent_id, :tags, :priority, :fecha_inicio, :fecha_fin, :estado, :created, :updated, :monto, :periodicidad, :meta, :acumulado, :productos, :user_id)
                   ON CONFLICT (id) DO UPDATE SET
                     type = EXCLUDED.type,
                     title = EXCLUDED.title,
@@ -76,6 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     periodicidad = EXCLUDED.periodicidad,
                     meta = EXCLUDED.meta,
                     acumulado = EXCLUDED.acumulado,
+                    productos = EXCLUDED.productos,
                     updated = EXCLUDED.updated
                   WHERE items.updated < EXCLUDED.updated AND items.user_id = :user_id2";
 
@@ -87,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute(['id' => $item['id'], 'user_id' => $userId]);
       } else {
         $stmt = $pdo->prepare($insertSql);
+        $productosJson = isset($item['productos']) ? json_encode($item['productos'], JSON_UNESCAPED_UNICODE) : null;
         $stmt->execute([
           'id' => $item['id'],
           'type' => $item['type'] ?? 'task',
@@ -102,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'periodicidad' => $item['periodicidad'] ?? null,
           'meta' => $item['meta'] ?? 0,
           'acumulado' => $item['acumulado'] ?? 0,
+          'productos' => $productosJson,
           'created' => $item['created'] ?? round(microtime(true) * 1000),
           'updated' => $item['updated'] ?? round(microtime(true) * 1000),
           'user_id' => $userId,
@@ -162,6 +165,14 @@ function formatItem($row) {
     }
   }
 
+  $productos = [];
+  if (!empty($row['productos'])) {
+    $decoded = json_decode($row['productos'], true);
+    if (is_array($decoded)) {
+      $productos = $decoded;
+    }
+  }
+
   return [
     'id' => $row['id'],
     'type' => $row['type'],
@@ -177,6 +188,7 @@ function formatItem($row) {
     'periodicidad' => $row['periodicidad'],
     'meta' => (float) $row['meta'],
     'acumulado' => (float) $row['acumulado'],
+    'productos' => $productos,
     'created' => (int) $row['created'],
     'updated' => (int) $row['updated'],
   ];

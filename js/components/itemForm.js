@@ -105,6 +105,22 @@ export class ItemForm {
           <button class="priority-opt p-3 ${item.priority === 3 ? 'selected' : ''}" data-p="3">🟢 Baja</button>
         </div>
       </div>
+      <div class="panel-field" id="f-productos-group">
+        <label>Productos</label>
+        <table class="fz-prod-table" id="f-prod-table">
+          <thead><tr><th>Producto</th><th>Cant.</th><th>P.U.</th><th></th></tr></thead>
+          <tbody>
+            ${(item.productos || []).map(p => `
+              <tr class="fz-product-row">
+                <td><input class="fz-prod-nombre" type="text" value="${this.esc(p.nombre)}" placeholder="Producto" style="width:100%;"></td>
+                <td><input class="fz-prod-cantidad" type="number" min="1" value="${p.cantidad || 1}" style="width:60px;"></td>
+                <td><input class="fz-prod-precio" type="number" step="0.01" min="0" value="${p.precio_unitario || 0}" style="width:90px;"></td>
+                <td><button class="btn btn-danger fz-prod-remove" style="padding:2px 8px;font-size:12px;">×</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        <button class="btn btn-secondary" id="f-prod-add" style="font-size:12px;margin-top:4px;">+ Agregar producto</button>
+      </div>
       <div class="panel-field" id="f-dates-group">
         <div style="display:flex;gap:8px;">
           <div style="flex:1">
@@ -203,6 +219,30 @@ export class ItemForm {
         btn.classList.add('selected');
       });
     });
+
+    this.body.addEventListener('click', (e) => {
+      if (e.target.id === 'f-prod-add') {
+        const tbody = this.body.querySelector('#f-prod-table tbody');
+        if (!tbody) return;
+        const tr = document.createElement('tr');
+        tr.className = 'fz-product-row';
+        tr.innerHTML = `
+          <td><input class="fz-prod-nombre" type="text" placeholder="Producto" style="width:100%;"></td>
+          <td><input class="fz-prod-cantidad" type="number" min="1" value="1" style="width:60px;"></td>
+          <td><input class="fz-prod-precio" type="number" step="0.01" min="0" value="0" style="width:90px;"></td>
+          <td><button class="btn btn-danger fz-prod-remove" style="padding:2px 8px;font-size:12px;">×</button></td>
+        `;
+        tbody.appendChild(tr);
+        tr.querySelector('.fz-prod-nombre').focus();
+        return;
+      }
+
+      const removeBtn = e.target.closest('.fz-prod-remove');
+      if (removeBtn) {
+        const row = removeBtn.closest('.fz-product-row');
+        if (row) row.remove();
+      }
+    });
   }
 
   renderTags(container) {
@@ -222,6 +262,7 @@ export class ItemForm {
     const mg = this.body.querySelector('#f-monto-group');
     const per = this.body.querySelector('#f-periodicidad-group');
     const ag = this.body.querySelector('#f-ahorro-group');
+    const prg = this.body.querySelector('#f-productos-group');
 
     const hideAll = type === 'note' || type === 'carpeta';
     pg.style.display = (hideAll || type === 'ahorro' || type === 'gasto') ? 'none' : '';
@@ -230,6 +271,7 @@ export class ItemForm {
     mg.style.display = (type === 'suscripcion' || type === 'gasto' || type === 'ahorro') ? '' : 'none';
     per.style.display = type === 'suscripcion' ? '' : 'none';
     ag.style.display = type === 'ahorro' ? '' : 'none';
+    prg.style.display = type === 'gasto' ? '' : 'none';
   }
 
   submit() {
@@ -239,6 +281,25 @@ export class ItemForm {
 
     const selPri = this.body.querySelector('.priority-opt.selected');
     const priority = (type === 'note' || type === 'carpeta' || type === 'ahorro' || type === 'gasto') ? null : parseInt(selPri?.dataset.p || '2');
+
+    const productos = [];
+    if (type === 'gasto') {
+      this.body.querySelectorAll('.fz-product-row').forEach(row => {
+        const nombre = row.querySelector('.fz-prod-nombre')?.value.trim();
+        const cantidad = parseFloat(row.querySelector('.fz-prod-cantidad')?.value) || 1;
+        const precio = parseFloat(row.querySelector('.fz-prod-precio')?.value) || 0;
+        if (nombre) {
+          productos.push({ nombre, cantidad, precio_unitario: precio });
+        }
+      });
+    }
+
+    const montoUser = (type === 'suscripcion' || type === 'gasto' || type === 'ahorro')
+      ? parseFloat(this.body.querySelector('#f-monto').value) || 0
+      : 0;
+    const monto = (type === 'gasto' && productos.length > 0)
+      ? productos.reduce((s, p) => s + (p.cantidad * p.precio_unitario), 0)
+      : montoUser;
 
     const data = {
       type,
@@ -250,10 +311,11 @@ export class ItemForm {
       fecha_inicio: type === 'ahorro' ? '' : this.body.querySelector('#f-fecha-inicio').value,
       fecha_fin: type === 'ahorro' || type === 'gasto' ? '' : this.body.querySelector('#f-fecha-fin').value,
       estado: (type === 'note' || type === 'carpeta') ? null : this.body.querySelector('#f-estado').value,
-      monto: (type === 'suscripcion' || type === 'gasto' || type === 'ahorro') ? parseFloat(this.body.querySelector('#f-monto').value) || 0 : 0,
+      monto,
       periodicidad: type === 'suscripcion' ? this.body.querySelector('#f-periodicidad').value : null,
       meta: type === 'ahorro' ? parseFloat(this.body.querySelector('#f-meta').value) || 0 : 0,
       acumulado: type === 'ahorro' ? parseFloat(this.body.querySelector('#f-acumulado').value) || 0 : 0,
+      productos: type === 'gasto' ? productos : [],
     };
 
     if (this.currentId) {
