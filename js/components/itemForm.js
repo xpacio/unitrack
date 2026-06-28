@@ -153,6 +153,8 @@ export class ItemForm {
       opts = ['activa', 'pausada', 'cancelada'];
     } else if (type === 'ahorro') {
       opts = ['activa', 'completada'];
+    } else if (type === 'gasto') {
+      opts = ['pendiente', 'pagado'];
     } else if (type === 'note' || type === 'carpeta') {
       opts = [];
     } else {

@@ -87,19 +87,22 @@ export class FinanzaView {
     if (items.length === 0) return '';
     let html = `<div class="fz-section"><h3 class="fz-section-title">Gastos recientes</h3><div class="fz-list">`;
     for (const item of items.slice(0, 20)) {
+      const pagado = item.estado === 'pagado';
       const tags = item.tags?.length
         ? item.tags.map(t => `<span class="fz-tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')
         : '';
       html += `
-        <div class="fz-row" data-id="${item.id}">
+        <div class="fz-row ${pagado ? 'pagado' : ''}" data-id="${item.id}">
           <div class="fz-row-body" data-id="${item.id}" style="cursor:pointer;flex:1;">
-            <div class="fz-row-title">${this.esc(item.title)}</div>
+            <div class="fz-row-title">${pagado ? '✅ ' : ''}${this.esc(item.title)}</div>
             <div class="fz-row-meta">
               <span class="fz-row-amount">$${this.fmt(item.monto)}</span>
               <span class="fz-row-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '—'}</span>
+              ${pagado ? '<span class="fz-badge pagado">Pagado</span>' : ''}
               ${tags}
             </div>
           </div>
+          ${!pagado ? `<button class="btn btn-primary fz-pay-btn" data-id="${item.id}">✓ Pagar</button>` : ''}
         </div>`;
     }
     html += `</div></div>`;
@@ -141,7 +144,13 @@ export class FinanzaView {
       if (payBtn) {
         const item = this.store.getById(payBtn.dataset.id);
         if (item && confirm(`¿Pagar ${this.esc(item.title)} - $${item.monto}?`)) {
-          this.store.paySubscription(item);
+          if (item.type === 'gasto') {
+            item.estado = 'pagado';
+            item.updated = Date.now();
+            this.store.update(item);
+          } else {
+            this.store.paySubscription(item);
+          }
           this.render();
         }
         return;
@@ -290,7 +299,13 @@ export class FinanzaView {
     }
     if (item.type === 'gasto') {
       extraFields += `
-        <div class="panel-field"><label>Fecha</label><input id="fz-edit-fecha" type="date" value="${item.fecha_inicio || ''}"></div>`;
+        <div class="panel-field"><label>Fecha</label><input id="fz-edit-fecha" type="date" value="${item.fecha_inicio || ''}"></div>
+        <div class="panel-field"><label>Estado</label>
+          <select id="fz-edit-estado">
+            <option value="pendiente" ${item.estado === 'pendiente' || !item.estado ? 'selected' : ''}>Pendiente</option>
+            <option value="pagado" ${item.estado === 'pagado' ? 'selected' : ''}>Pagado</option>
+          </select>
+        </div>`;
     }
     if (item.type === 'ahorro') {
       extraFields += `
@@ -342,6 +357,7 @@ export class FinanzaView {
       }
       if (item.type === 'gasto') {
         item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
+        item.estado = document.getElementById('fz-edit-estado')?.value || 'pendiente';
       }
       if (item.type === 'ahorro') {
         item.meta = parseFloat(document.getElementById('fz-edit-meta')?.value) || 0;
