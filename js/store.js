@@ -150,6 +150,10 @@ export class Store {
     if (newParentId) {
       const descendants = this.getDescendantIds(itemId);
       if (descendants.includes(newParentId)) throw new Error('Crearía un ciclo');
+      const parent = this.getById(newParentId);
+      if (parent && parent.fecha_fin) {
+        item.fecha_fin = parent.fecha_fin;
+      }
     }
     item.parent_id = newParentId;
     item.updated = Date.now();
