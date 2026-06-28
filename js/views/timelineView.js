@@ -259,7 +259,7 @@ export class TimelineView {
     const typeLabel = item.type === 'task' ? 'Tarea' : 'Evento';
     const isPast = parseLocalDate(item.fecha_inicio) < new Date(new Date().toDateString());
     const tags = item.tags?.length
-      ? item.tags.map(t => `<span class="tag tag-clickable" style="font-size:9px;padding:1px 4px;">${this.esc(t)}</span>`).join('')
+      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}" style="font-size:9px;padding:1px 4px;">${this.esc(t)}</span>`).join('')
       : '';
 
     return `
