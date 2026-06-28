@@ -200,7 +200,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'forgot_password') {
     $message .= "Si no solicitaste este cambio, ignora este mensaje.\r\n\r\n";
     $message .= "— UniTrack";
     $headers = "From: UniTrack <jose@alvar3z.nl>\r\n";
+    $headers .= "Reply-To: jose@alvar3z.nl\r\n";
     $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+    $headers .= "MIME-Version: 1.0\r\n";
     mail($email, $subject, $message, $headers);
   }
 
