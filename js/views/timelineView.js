@@ -1,4 +1,5 @@
 import * as clipboard from '../clipboard.js';
+import { todayLocalStr, parseLocalDate } from '../helpers.js';
 
 export class TimelineView {
   constructor(store, form, onTagClick) {
@@ -220,8 +221,7 @@ export class TimelineView {
     today.setHours(0, 0, 0, 0);
 
     for (const item of items) {
-      const d = new Date(item.fecha_inicio);
-      d.setHours(0, 0, 0, 0);
+      const d = parseLocalDate(item.fecha_inicio);
       const key = d.getTime();
       if (!map.has(key)) map.set(key, { date: d, items: [] });
       const group = map.get(key);
@@ -257,7 +257,7 @@ export class TimelineView {
     const countdown = this.getCountdown(item.fecha_inicio);
     const countdownClass = countdown.urgent ? 'urgent' : countdown.soon ? 'soon' : 'later';
     const typeLabel = item.type === 'task' ? 'Tarea' : 'Evento';
-    const isPast = new Date(item.fecha_inicio) < new Date(new Date().toDateString());
+    const isPast = parseLocalDate(item.fecha_inicio) < new Date(new Date().toDateString());
     const tags = item.tags?.length
       ? item.tags.map(t => `<span class="tag tag-clickable" style="font-size:9px;padding:1px 4px;">${this.esc(t)}</span>`).join('')
       : '';
@@ -287,8 +287,7 @@ export class TimelineView {
 
   getCountdown(dateStr) {
     const now = new Date();
-    const target = new Date(dateStr);
-    target.setHours(0, 0, 0, 0);
+    const target = parseLocalDate(dateStr);
     const diff = target.getTime() - now.getTime();
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
 
@@ -319,7 +318,7 @@ export class TimelineView {
   }
 
   formatTime(dateStr) {
-    const d = new Date(dateStr);
+    const d = parseLocalDate(dateStr);
     return d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
   }
 

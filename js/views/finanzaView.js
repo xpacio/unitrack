@@ -1,4 +1,5 @@
 import * as clipboard from '../clipboard.js';
+import { todayLocalStr, parseLocalDate } from '../helpers.js';
 
 export class FinanzaView {
   constructor(store, form, onTagClick) {
@@ -62,7 +63,7 @@ export class FinanzaView {
 
   renderSuscripciones(items) {
     if (items.length === 0) return '';
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = todayLocalStr();
     let html = `<div class="fz-section"><h3 class="fz-section-title">Suscripciones activas (${items.length})</h3><div class="fz-list">`;
     for (const item of items) {
       const vencida = item.fecha_inicio && item.fecha_inicio <= hoy;
@@ -72,7 +73,7 @@ export class FinanzaView {
             <div class="fz-row-title">${this.esc(item.title)}</div>
             <div class="fz-row-meta">
               <span class="fz-row-amount">$${this.fmt(item.monto)}/${item.periodicidad || '?'}</span>
-              <span class="fz-row-date">${item.fecha_inicio ? new Date(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '—'} ${vencida ? '⏰ Vencida' : this.countdown(item.fecha_inicio)}</span>
+              <span class="fz-row-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '—'} ${vencida ? '⏰ Vencida' : this.countdown(item.fecha_inicio)}</span>
             </div>
           </div>
           ${vencida ? `<button class="btn btn-primary fz-pay-btn" data-id="${item.id}">Pagar</button>` : ''}
@@ -95,7 +96,7 @@ export class FinanzaView {
             <div class="fz-row-title">${this.esc(item.title)}</div>
             <div class="fz-row-meta">
               <span class="fz-row-amount">$${this.fmt(item.monto)}</span>
-              <span class="fz-row-date">${item.fecha_inicio ? new Date(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '—'}</span>
+              <span class="fz-row-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '—'}</span>
               ${tags}
             </div>
           </div>
@@ -216,12 +217,12 @@ export class FinanzaView {
 
     let extra = '';
     if (item.type === 'suscripcion') {
-      const hoy = new Date().toISOString().slice(0, 10);
+      const hoy = todayLocalStr();
       const vencida = item.fecha_inicio && item.fecha_inicio <= hoy;
       extra = `
         <div class="panel-field"><label>Monto</label><div style="font-weight:600;font-size:18px;">$${this.fmt(item.monto)}</div></div>
         <div class="panel-field"><label>Periodicidad</label><div>${item.periodicidad === 'bimestral' ? 'Bimestral' : 'Mensual'}</div></div>
-        <div class="panel-field"><label>Próximo pago</label><div style="color:${vencida ? 'var(--danger)' : 'var(--text-secondary)'};font-weight:${vencida ? '600' : '400'};">${item.fecha_inicio ? new Date(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'} ${vencida ? '⏰ Vencida' : ''}</div></div>
+        <div class="panel-field"><label>Próximo pago</label><div style="color:${vencida ? 'var(--danger)' : 'var(--text-secondary)'};font-weight:${vencida ? '600' : '400'};">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'} ${vencida ? '⏰ Vencida' : ''}</div></div>
         ${vencida ? `<div style="margin-top:12px;"><button class="btn btn-primary" id="fz-detail-pay" style="width:100%;">Pagar $${this.fmt(item.monto)}</button></div>` : ''}
       `;
       if (vencida) {
@@ -235,7 +236,7 @@ export class FinanzaView {
     } else if (item.type === 'gasto') {
       extra = `
         <div class="panel-field"><label>Monto</label><div style="font-weight:600;font-size:18px;">$${this.fmt(item.monto)}</div></div>
-        <div class="panel-field"><label>Fecha</label><div class="panel-value-date">${item.fecha_inicio ? new Date(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</div></div>
+        <div class="panel-field"><label>Fecha</label><div class="panel-value-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</div></div>
       `;
     } else if (item.type === 'ahorro') {
       const pct = item.meta > 0 ? Math.min(100, Math.round((item.acumulado || 0) / item.meta * 100)) : 0;
@@ -287,6 +288,10 @@ export class FinanzaView {
           </select>
         </div>`;
     }
+    if (item.type === 'gasto') {
+      extraFields += `
+        <div class="panel-field"><label>Fecha</label><input id="fz-edit-fecha" type="date" value="${item.fecha_inicio || ''}"></div>`;
+    }
     if (item.type === 'ahorro') {
       extraFields += `
         <div class="panel-field"><label>Meta</label>
@@ -335,6 +340,9 @@ export class FinanzaView {
         item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
         item.estado = document.getElementById('fz-edit-estado')?.value || 'activa';
       }
+      if (item.type === 'gasto') {
+        item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
+      }
       if (item.type === 'ahorro') {
         item.meta = parseFloat(document.getElementById('fz-edit-meta')?.value) || 0;
         item.acumulado = parseFloat(document.getElementById('fz-edit-acumulado')?.value) || 0;
@@ -358,7 +366,7 @@ export class FinanzaView {
     if (!dateStr) return '';
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
-    const target = new Date(dateStr + 'T00:00:00');
+    const target = parseLocalDate(dateStr);
     const diff = Math.ceil((target - hoy) / 86400000);
     if (diff < 0) return '';
     if (diff === 0) return '🔴 Hoy';

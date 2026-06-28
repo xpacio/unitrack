@@ -1,3 +1,5 @@
+import { todayLocalStr, parseLocalDate } from './helpers.js';
+
 export function createItem(data = {}) {
   const type = data.type || 'task';
   return {
@@ -8,7 +10,7 @@ export function createItem(data = {}) {
     parent_id: data.parent_id || null,
     tags: data.tags || [],
     priority: data.priority ?? (type === 'note' || type === 'carpeta' ? null : type === 'ahorro' ? null : 2),
-    fecha_inicio: data.fecha_inicio || '',
+    fecha_inicio: data.fecha_inicio || (data.type === 'gasto' ? todayLocalStr() : ''),
     fecha_fin: data.fecha_fin || '',
     estado: data.estado || (type === 'note' || type === 'carpeta' ? null : type === 'suscripcion' ? 'activa' : 'pendiente'),
     monto: data.monto ?? 0,
@@ -255,8 +257,8 @@ export class Store {
     return this.items
       .filter(i => i.fecha_inicio && (i.type === 'task' || i.type === 'event' || i.type === 'suscripcion' || i.type === 'gasto'))
       .sort((a, b) => {
-        const da = new Date(a.fecha_inicio);
-        const db = new Date(b.fecha_inicio);
+        const da = parseLocalDate(a.fecha_inicio);
+        const db = parseLocalDate(b.fecha_inicio);
         if (da - db !== 0) return da - db;
         return (a.priority ?? 2) - (b.priority ?? 2);
       });
@@ -289,15 +291,15 @@ export class Store {
       title: `${item.title} - Pago`,
       content: `Pago de suscripción ${item.title} - $${item.monto}`,
       monto: item.monto,
-      fecha_inicio: new Date().toISOString().slice(0, 10),
+      fecha_inicio: todayLocalStr(),
       tags: [...(item.tags || [])],
     });
     this.add(gasto);
 
     const advance = item.periodicidad === 'bimestral' ? 60 : 30;
-    const next = new Date(item.fecha_inicio);
+    const next = parseLocalDate(item.fecha_inicio);
     next.setDate(next.getDate() + advance);
-    item.fecha_inicio = next.toISOString().slice(0, 10);
+    item.fecha_inicio = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
     item.updated = Date.now();
     this.update(item);
 
@@ -306,7 +308,7 @@ export class Store {
 
   getTotalesMes() {
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const gastosMes = this.items.filter(i =>
       i.type === 'gasto' && i.fecha_inicio >= monthStart
     );
@@ -316,8 +318,10 @@ export class Store {
     const ahorros = this.items.filter(i => i.type === 'ahorro');
     const totalAhorrado = ahorros.reduce((s, i) => s + (i.acumulado || 0), 0);
 
-    const mesAnt = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
-    const mesAntFin = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+    const dPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const mesAnt = `${dPrev.getFullYear()}-${String(dPrev.getMonth() + 1).padStart(2, '0')}-01`;
+    const dPrevEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    const mesAntFin = `${dPrevEnd.getFullYear()}-${String(dPrevEnd.getMonth() + 1).padStart(2, '0')}-${String(dPrevEnd.getDate()).padStart(2, '0')}`;
     const gastosMesAnt = this.items.filter(i =>
       i.type === 'gasto' && i.fecha_inicio >= mesAnt && i.fecha_inicio <= mesAntFin
     );
@@ -359,7 +363,7 @@ export class Store {
     add({ type: 'event', title: 'Demo con el equipo', content: 'Mostrar avances del MVP', parent_id: null, priority: 2, fecha_inicio: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10), tags: ['ritual'] });
 
     const hoy = new Date();
-    const mesStr = (d) => d.toISOString().slice(0, 10);
+    const mesStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     add({ type: 'suscripcion', title: 'Netflix', content: 'Plan Premium 4K', monto: 199, periodicidad: 'mensual', fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 15)), tags: ['entretenimiento'], estado: 'activa' });
     const intDate = new Date();
     intDate.setDate(intDate.getDate() - 5);

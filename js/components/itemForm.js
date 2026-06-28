@@ -223,7 +223,7 @@ export class ItemForm {
 
     const hideAll = type === 'note' || type === 'carpeta';
     pg.style.display = (hideAll || type === 'ahorro' || type === 'gasto') ? 'none' : '';
-    dg.style.display = (hideAll || type === 'ahorro' || type === 'gasto') ? 'none' : '';
+    dg.style.display = (hideAll || type === 'ahorro') ? 'none' : '';
     eg.style.display = hideAll ? 'none' : '';
     mg.style.display = (type === 'suscripcion' || type === 'gasto' || type === 'ahorro') ? '' : 'none';
     per.style.display = type === 'suscripcion' ? '' : 'none';
