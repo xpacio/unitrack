@@ -1,0 +1,96 @@
+.nav-bar {
+  display: flex;
+  align-items: center;
+  height: var(--nav-height);
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.nav-bar .brand {
+  position: relative;
+  font-weight: 700;
+  font-size: 15px;
+  margin-right: 16px;
+  color: var(--primary);
+  letter-spacing: -0.3px;
+  transition: color 300ms ease;
+  cursor: default;
+}
+.nav-bar .brand.status-offline { color: var(--text-muted); }
+.nav-bar .brand.status-syncing {
+  color: var(--primary);
+  animation: brand-pulse 1.2s ease-in-out infinite;
+}
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--warning);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.brand-badge.hidden { display: none; }
+
+@keyframes brand-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+
+.nav-btn:hover { background: var(--surface-hover); color: var(--text); }
+.nav-btn.active { background: var(--primary-light); color: var(--primary); }
+.nav-btn svg { width: 18px; height: 18px; }
+
+.nav-spacer { flex: 1; }
+
+.nav-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-icon:hover { background: var(--surface-hover); color: var(--text); }
+.btn-icon.primary { color: var(--primary); }
+.btn-icon.primary:hover { background: var(--primary-light); }
+.btn-icon.active { color: var(--primary); background: var(--primary-light); }
+
+.btn-icon svg { width: 18px; height: 18px; }

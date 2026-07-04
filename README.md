@@ -21,7 +21,14 @@ Modelo unificado `Item` con `type` para task/note/event. Tres vistas (Tareas, No
 
 ```
 index.html           → shell HTML
-css/style.css        → todos los estilos
+css/base.css         → variables, reset, layout
+css/nav.css          → navegación
+css/tree.css         → árbol jerárquico
+css/panel.css        → panel de detalle, editor, markdown
+css/components.css   → modales, tags, search
+css/views.css        → timeline, finanzas
+css/auth.css         → landing / auth
+css/mobile.css       → responsive móvil
 js/store.js          → modelo, CRUD, persistencia, sync
 js/app.js            → bootstrap, navegación, sync indicator
 js/components/

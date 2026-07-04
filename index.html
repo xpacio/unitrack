@@ -4,12 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UniTrack</title>
-  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/base.css?v=3">
+  <link rel="stylesheet" href="css/nav.css?v=3">
+  <link rel="stylesheet" href="css/tree.css?v=3">
+  <link rel="stylesheet" href="css/panel.css?v=3">
+  <link rel="stylesheet" href="css/components.css?v=3">
+  <link rel="stylesheet" href="css/views.css?v=3">
+  <link rel="stylesheet" href="css/auth.css?v=3">
+  <link rel="stylesheet" href="css/mobile.css?v=3">
 </head>
 <body>
   <div id="app" class="hidden">
     <nav class="nav-bar">
-      <span class="brand">UniTrack</span>
+      <span class="brand" id="brand" title="Todo sincronizado">
+        UniTrack
+        <span class="brand-badge hidden" id="brand-badge">0</span>
+      </span>
       <button class="nav-btn active" data-view="tasks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><path d="M9 14l2 2 4-4"/></svg>
         Tareas
@@ -26,14 +36,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
         Finanzas
       </button>
-      <div class="sync-indicator" id="sync-indicator" title="Estado de sincronización">
-        <span class="status-indicator status-green status-indicator-animated" id="sync-dots">
-          <span class="status-indicator-circle"></span>
-          <span class="status-indicator-circle"></span>
-          <span class="status-indicator-circle"></span>
-        </span>
-        <span class="sync-pending hidden" id="sync-pending">0</span>
-      </div>
       <div class="nav-spacer"></div>
       <div class="nav-actions">
         <button class="btn-icon primary" id="btn-add" title="Agregar">
@@ -41,12 +43,6 @@
         </button>
         <button class="btn-icon" id="btn-search" title="Buscar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        </button>
-        <button class="btn-icon" id="btn-storage-toggle" title="Modo offline-first — haz clic para cambiar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1010 10M2 12h20M12 2v20M2.5 8h19M2.5 16h19"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-        <button class="btn-icon" id="btn-mode-toggle" title="Cambiar modo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M8 21h8M12 17v4"/></svg>
         </button>
         <button class="btn-icon" id="btn-user" title="Usuario">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -260,6 +256,30 @@
         <button class="auth-btn" id="btn-logout" style="background:var(--danger);">Cerrar sesión</button>
         <button class="auth-btn" id="btn-reset-user" style="background:transparent;color:var(--text-muted);font-size:12px;margin-top:8px;padding:8px;">Restablecer todo</button>
         <button class="auth-btn" id="btn-change-pw" style="background:transparent;color:var(--primary);font-size:13px;margin-top:4px;padding:8px;">🔄 Cambiar clave</button>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);text-align:left;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Configuración</div>
+          <div style="margin-bottom:12px;">
+            <div style="font-size:13px;font-weight:500;margin-bottom:6px;">Almacenamiento</div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 0;cursor:pointer;">
+              <input type="radio" name="storage-mode" value="offline_first"> Offline-first
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 0;cursor:pointer;">
+              <input type="radio" name="storage-mode" value="online_first"> Online-first
+            </label>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:500;margin-bottom:6px;">Visualización</div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 0;cursor:pointer;">
+              <input type="radio" name="display-mode" value="auto"> Automático
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 0;cursor:pointer;">
+              <input type="radio" name="display-mode" value="mobile"> Móvil
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 0;cursor:pointer;">
+              <input type="radio" name="display-mode" value="desktop"> Escritorio
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   </div>

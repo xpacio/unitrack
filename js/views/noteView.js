@@ -1,4 +1,6 @@
 import * as clipboard from '../clipboard.js';
+import { esc, renderMarkdown } from '../helpers.js';
+import { TreeRenderer } from '../treeRenderer.js';
 
 export class NoteView {
   constructor(store, form, onTagClick) {
@@ -6,129 +8,97 @@ export class NoteView {
     this.form = form;
     this.onTagClick = onTagClick;
     this.container = document.getElementById('view-notes');
-    this.expanded = new Set();
+    this.tree = new TreeRenderer(store);
     this.render();
   }
 
   render() {
-    const notes = this.store.getByType('note');
-    const folders = this.store.getByType('carpeta');
-    const all = [...folders, ...notes];
+    const all = [...this.store.getByType('carpeta'), ...this.store.getByType('note')];
     this.container.innerHTML = `
       <div class="tree-root" id="note-tree">
-        ${this.renderTree(all)}
+        ${this.tree.render(null, 0, (item, depth, isExpanded, hasChildren) => this.renderRow(item, depth, isExpanded, hasChildren))}
       </div>
       ${all.length === 0 ? this.emptyState() : ''}
     `;
     this.attachEvents();
   }
 
-  renderTree(items, parentId = null, depth = 0) {
-    const children = items
-      .filter(i => i.parent_id === parentId)
-      .sort((a, b) => {
-        if (a.type === 'carpeta' && b.type !== 'carpeta') return -1;
-        if (a.type !== 'carpeta' && b.type === 'carpeta') return 1;
-        return 0;
-      });
-    if (children.length === 0) return '';
+  renderRow(item, depth, isExpanded, hasChildren) {
+    if (item.type === 'carpeta') {
+      const childCount = this.store.getChildren(item.id).length;
+      const tags = item.tags?.length
+        ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${esc(t)}</span>`).join('')
+        : '';
 
-    let html = '';
-    for (const item of children) {
-      if (item.type === 'carpeta') {
-        const isExpanded = this.expanded.has(item.id);
-        const childCount = items.filter(i => i.parent_id === item.id).length;
-        const tags = item.tags?.length
-          ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${this.esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${this.esc(t)}</span>`).join('')
-          : '';
-
-        html += `
-          <div class="tree-node" data-id="${item.id}">
-            <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
-              <span class="tree-toggle ${isExpanded ? 'expanded' : ''}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-              </span>
-              <span class="tree-folder-icon">📁</span>
-              <span class="tree-title">${this.esc(item.title)}</span>
-              ${tags}
-              <span class="tree-count-badge">${childCount}</span>
-            </div>
-            <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
-              ${this.renderTree(items, item.id, depth + 1)}
-            </div>
-          </div>`;
-      } else {
-        const hasChildren = items.some(i => i.parent_id === item.id);
-        const isExpanded = this.expanded.has(item.id);
-        const preview = (item.content || '').replace(/[#*`\[\]]/g, '').trim().slice(0, 60);
-
-        html += `
-          <div class="tree-node" data-id="${item.id}">
-            <div class="tree-row" data-id="${item.id}" style="--tree-depth:${depth}">
-              <span class="tree-toggle ${hasChildren ? (isExpanded ? 'expanded' : '') : 'leaf'}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-              </span>
-              <span class="tree-title">${this.esc(item.title)}</span>
-              ${preview ? `<span class="tree-preview">— ${this.esc(preview)}</span>` : ''}
-              <span class="tree-actions">
-                <button class="tree-action" data-action="add-sub" data-id="${item.id}" title="Agregar sub-nota">+</button>
-                <button class="tree-action danger" data-action="delete" data-id="${item.id}" title="Eliminar">✕</button>
-              </span>
-            </div>
-            <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
-              ${this.renderTree(items, item.id, depth + 1)}
-            </div>
-          </div>`;
-      }
+      return `
+        <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
+          <span class="tree-toggle${isExpanded ? ' expanded' : ''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
+          <div class="tree-row-body" data-id="${item.id}">
+            <span class="tree-folder-icon">📁</span>
+            <span class="tree-title">${esc(item.title)}</span>
+            ${tags}
+            <span class="tree-count-badge">${childCount}</span>
+          </div>
+        </div>`;
     }
-    return html;
+
+    const preview = (item.content || '').replace(/[#*`\[\]]/g, '').trim().slice(0, 60);
+
+    return `
+      <div class="tree-row" data-id="${item.id}" style="--tree-depth:${depth}">
+        <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+        <div class="tree-row-body" data-id="${item.id}">
+          <span class="tree-title">${esc(item.title)}</span>
+          ${preview ? `<span class="tree-preview">— ${esc(preview)}</span>` : ''}
+        </div>
+        <span class="tree-actions">
+          <button class="tree-action" data-action="add-sub" data-id="${item.id}" title="Agregar sub-nota">+</button>
+          <button class="tree-action danger" data-action="delete" data-id="${item.id}" title="Eliminar">✕</button>
+        </span>
+      </div>`;
   }
 
   attachEvents() {
     const tree = this.container.querySelector('#note-tree');
-    if (tree) {
-      tree.addEventListener('click', (e) => {
-        const toggle = e.target.closest('.tree-toggle:not(.leaf)');
-        if (toggle) {
-          const node = toggle.closest('.tree-node');
-          const childrenDiv = node.querySelector('.tree-children');
-          if (childrenDiv) {
-            const isHidden = childrenDiv.style.display === 'none';
-            childrenDiv.style.display = isHidden ? 'block' : 'none';
-            toggle.classList.toggle('expanded', isHidden);
-            if (isHidden) this.expanded.add(node.dataset.id);
-            else this.expanded.delete(node.dataset.id);
-          }
-          return;
-        }
+    if (!tree) return;
 
-        const tag = e.target.closest('.tag-clickable');
-        if (tag && this.onTagClick) {
-          this.onTagClick(tag.dataset.tag);
-          return;
-        }
+    this.tree.setupToggle(tree);
 
-        const row = e.target.closest('.tree-row');
-        if (row && !e.target.closest('.tree-actions, .tree-action')) {
-          const item = this.store.getById(row.dataset.id);
-          if (item) this.openDetail(item);
-          return;
-        }
+    tree.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.tree-toggle:not(.leaf)');
+      if (toggle) return;
 
-        const action = e.target.closest('[data-action]');
-        if (!action) return;
-        if (action.dataset.action === 'add-sub') {
-          this.form.currentType = 'note';
-          this.form.parentId = action.dataset.id;
-          this.form.open(null);
-        } else if (action.dataset.action === 'delete') {
-          if (confirm('¿Eliminar esta nota y sus sub-notas?')) {
-            this.store.delete(action.dataset.id);
-            this.render();
-          }
+      const tag = e.target.closest('.tag-clickable');
+      if (tag && this.onTagClick) {
+        this.onTagClick(tag.dataset.tag);
+        return;
+      }
+
+      const body = e.target.closest('.tree-row-body');
+      if (body) {
+        const row = body.closest('.tree-row');
+        const item = this.store.getById(row.dataset.id);
+        if (item) this.openDetail(item);
+        return;
+      }
+
+      const action = e.target.closest('[data-action]');
+      if (!action) return;
+      if (action.dataset.action === 'add-sub') {
+        this.form.currentType = 'note';
+        this.form.parentId = action.dataset.id;
+        this.form.open(null);
+      } else if (action.dataset.action === 'delete') {
+        if (confirm('¿Eliminar esta nota y sus sub-notas?')) {
+          this.store.delete(action.dataset.id);
+          this.render();
         }
-      });
-    }
+      }
+    });
   }
 
   openDetail(item) {
@@ -186,21 +156,21 @@ export class NoteView {
   }
 
   openFolderDetail(item, panel, body, title, actions) {
-    title.textContent = this.esc(item.title);
+    title.textContent = esc(item.title);
 
     const children = this.store.getChildren(item.id);
 
     body.innerHTML = `
-      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">📁 ${this.esc(item.title)}</div></div>
-      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${item.tags?.length ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('') : 'Sin tags'}</div></div>
-      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">📁 ${esc(item.title)}</div></div>
+      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${item.tags?.length ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('') : 'Sin tags'}</div></div>
+      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${renderMarkdown(item.content || '')}</div></div>
       ${children.length > 0 ? `
         <div class="panel-field"><label>Contenido (${children.length})</label>
           <div class="detail-children">
             ${children.map(c => {
               const icon = c.type === 'carpeta' ? '📁' : '';
               return `<div class="detail-child">
-                <span class="child-link" data-id="${c.id}">${icon} ${this.esc(c.title)}</span>
+                <span class="child-link" data-id="${c.id}">${icon} ${esc(c.title)}</span>
               </div>`;
             }).join('')}
           </div>
@@ -268,23 +238,23 @@ export class NoteView {
       ? new Date(item.created).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
       : '';
     const tags = item.tags?.length
-      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')
+      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('')
       : '';
 
     return `
-      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">${this.esc(item.title)}</div></div>
+      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">${esc(item.title)}</div></div>
       <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${tags || 'Sin tags'}</div></div>
       <div class="panel-field"><label>Creado</label><div style="color:var(--text-secondary);font-size:13px;">${created}</div></div>
-      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${renderMarkdown(item.content || '')}</div></div>
     `;
   }
 
   renderEdit(item) {
     return `
-      <div class="panel-field"><label>Título</label><input id="note-edit-title" type="text" value="${this.esc(item.title)}" style="width:100%;"></div>
+      <div class="panel-field"><label>Título</label><input id="note-edit-title" type="text" value="${esc(item.title)}" style="width:100%;"></div>
       <div class="panel-field"><label>Contenido (Markdown)</label>
         <button class="btn btn-secondary" id="note-edit-md-help" style="font-size:11px;padding:3px 8px;margin-bottom:4px;">? MD</button>
-        <textarea id="note-edit-content" style="width:100%;min-height:200px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:13px;resize:vertical;">${this.esc(item.content || '')}</textarea>
+        <textarea id="note-edit-content" style="width:100%;min-height:200px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:13px;resize:vertical;">${esc(item.content || '')}</textarea>
       </div>
     `;
   }
@@ -294,42 +264,21 @@ export class NoteView {
       document.getElementById('modal-md').classList.add('open');
     });
 
-    document.getElementById('note-edit-save')?.addEventListener('click', () => {
+    document.getElementById('note-edit-save').addEventListener('click', () => {
       item.title = document.getElementById('note-edit-title')?.value.trim() || item.title;
       item.content = document.getElementById('note-edit-content')?.value || '';
       this.store.update(item);
       this.openDetail(item);
     });
 
-    document.getElementById('note-edit-cancel')?.addEventListener('click', () => {
+    document.getElementById('note-edit-cancel').addEventListener('click', () => {
       this.openDetail(item);
     });
 
-    document.getElementById('note-edit-cut')?.addEventListener('click', () => {
+    document.getElementById('note-edit-cut').addEventListener('click', () => {
       clipboard.cutItem(item.id);
       this.openDetail(item);
     });
-  }
-
-  renderMarkdown(text) {
-    if (!text) return '<p style="color:var(--text-muted)"><em>Sin contenido</em></p>';
-    return text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code>$1</code>')
-      .replace(/^\- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/^(?!<[hul])/gm, '<p>')
-      .replace(/$/gm, '</p>')
-      .replace(/<\/p>\n<p>/g, '</p><p>')
-      .replace(/<li><\/li>/g, '')
-      .replace(/<ul>\s*<\/ul>/g, '')
-      .replace(/<p><\/p>/g, '');
   }
 
   emptyState() {
@@ -338,12 +287,5 @@ export class NoteView {
       <h3>No hay notas</h3>
       <p>Crea tu primera nota con el botón +</p>
     </div>`;
-  }
-
-  esc(s) {
-    if (typeof s !== 'string') return '';
-    const div = document.createElement('div');
-    div.textContent = s;
-    return div.innerHTML;
   }
 }

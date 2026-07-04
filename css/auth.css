@@ -1,0 +1,235 @@
+#app.hidden { display: none; }
+#view-auth.hidden { display: none; }
+#view-reset-pw.hidden { display: none; }
+#forgot-ok.hidden { display: none; }
+
+.landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px 16px;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.landing-bg-circle {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.07;
+}
+
+.landing-bg-circle-1 {
+  width: 500px;
+  height: 500px;
+  background: var(--primary);
+  top: -150px;
+  right: -100px;
+}
+
+.landing-bg-circle-2 {
+  width: 400px;
+  height: 400px;
+  background: var(--primary);
+  bottom: -100px;
+  left: -80px;
+}
+
+.landing-hero {
+  text-align: center;
+  margin-bottom: 32px;
+  position: relative;
+  z-index: 1;
+}
+
+.landing-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.landing-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.landing-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+.landing-sub {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.landing-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 28px 24px;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  z-index: 1;
+}
+
+.landing-footer {
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 32px;
+}
+
+.reset-link {
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.reset-link:hover {
+  color: var(--danger);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 12px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+
+.auth-tab:hover { color: var(--text); }
+.auth-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+.auth-form.hidden { display: none; }
+
+.auth-field {
+  margin-bottom: 18px;
+}
+
+.auth-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.auth-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 16px;
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.auth-field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.auth-error {
+  font-size: 13px;
+  color: var(--danger);
+  margin-bottom: 16px;
+  line-height: 1.3;
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition), transform 100ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.auth-btn:hover { background: var(--primary-dark); }
+.auth-btn:active { transform: scale(0.98); }
+
+@media (min-width: 640px) {
+  .landing {
+    padding: 48px 24px;
+  }
+
+  .landing-hero {
+    margin-bottom: 40px;
+  }
+
+  .landing-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    margin-bottom: 20px;
+  }
+
+  .landing-icon svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .landing-title {
+    font-size: 32px;
+  }
+
+  .landing-sub {
+    font-size: 15px;
+  }
+
+  .landing-card {
+    padding: 32px 28px;
+  }
+
+  .auth-field input {
+    font-size: 14px;
+  }
+}

@@ -1,4 +1,6 @@
 import * as clipboard from '../clipboard.js';
+import { esc, renderMarkdown, PRIORITY_LABELS } from '../helpers.js';
+import { TreeRenderer } from '../treeRenderer.js';
 
 export class TaskView {
   constructor(store, form, onTagClick) {
@@ -7,86 +9,74 @@ export class TaskView {
     this.onTagClick = onTagClick;
     this.container = document.getElementById('view-tasks');
     this.currentDetailId = null;
-    this._expandedFolders = new Set();
+    this.tree = new TreeRenderer(store);
     this.render();
   }
 
   render() {
-    const tasks = this.store.getByType('task');
-    const folders = this.store.getByType('carpeta');
-    const all = [...folders, ...tasks];
+    const all = [...this.store.getByType('carpeta'), ...this.store.getByType('task')];
+    const sortFn = (a, b) => {
+      if (a.type === 'carpeta' && b.type !== 'carpeta') return -1;
+      if (a.type !== 'carpeta' && b.type === 'carpeta') return 1;
+      return (a.priority ?? 2) - (b.priority ?? 2);
+    };
     this.container.innerHTML = `
       <div class="tree-root" id="task-tree">
-        ${this.renderTree(all)}
+        ${this.tree.render(null, 0, (item, depth, isExpanded, hasChildren) => this.renderRow(item, depth, isExpanded, hasChildren), sortFn)}
       </div>
       ${all.length === 0 ? this.emptyState() : ''}
     `;
     this.attachEvents();
   }
 
-  renderTree(items, parentId = null, depth = 0) {
-    const children = items
-      .filter(i => i.parent_id === parentId)
-      .sort((a, b) => {
-        if (a.type === 'carpeta' && b.type !== 'carpeta') return -1;
-        if (a.type !== 'carpeta' && b.type === 'carpeta') return 1;
-        return (a.priority ?? 2) - (b.priority ?? 2);
-      });
-    if (children.length === 0) return '';
-
-    let html = '';
-    for (const item of children) {
-      if (item.type === 'carpeta') {
-        const isExpanded = this._expandedFolders.has(item.id);
-        const childCount = items.filter(i => i.parent_id === item.id).length;
-        const tags = item.tags?.length
-          ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${this.esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${this.esc(t)}</span>`).join('')
-          : '';
-
-        html += `
-          <div class="tree-node" data-id="${item.id}">
-            <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
-              <span class="tree-folder-chevron ${isExpanded ? 'expanded' : ''}">▶</span>
-              <span class="tree-folder-icon">📁</span>
-              <span class="tree-title">${this.esc(item.title)}</span>
-              ${tags}
-              <span class="tree-count-badge">${childCount}</span>
-            </div>
-            <div class="tree-children" style="display: ${isExpanded ? 'block' : 'none'}">
-              ${this.renderTree(items, item.id, depth + 1)}
-            </div>
-          </div>`;
-      } else {
-        const hasChildren = items.some(i => i.parent_id === item.id);
-        const isCompleted = item.estado === 'completada';
-        const priorityLabel = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
-        const dateStr = item.fecha_inicio
-          ? new Date(item.fecha_inicio).toLocaleDateString('es', { month: 'short', day: 'numeric' })
-          : '';
-
-        const tags = item.tags?.length
-          ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${this.esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${this.esc(t)}</span>`).join('')
-          : '';
-
-        html += `
-          <div class="tree-node" data-id="${item.id}">
-            <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
-              <span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>
-              <span class="tree-title">${this.esc(item.title)}</span>
-              ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
-              ${tags}
-              ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
-            </div>
-            ${this.renderTree(items, item.id, depth + 1)}
-          </div>`;
-      }
+  renderRow(item, depth, isExpanded, hasChildren) {
+    if (item.type === 'carpeta') {
+      const childCount = this.store.getChildren(item.id).length;
+      const tags = item.tags?.length
+        ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${esc(t)}</span>`).join('')
+        : '';
+      return `
+        <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
+          <span class="tree-toggle${isExpanded ? ' expanded' : ''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
+          <span class="tree-folder-icon">📁</span>
+          <span class="tree-title">${esc(item.title)}</span>
+          ${tags}
+          <span class="tree-count-badge">${childCount}</span>
+        </div>`;
     }
-    return html;
+
+    const isCompleted = item.estado === 'completada';
+    const priorityLabel = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
+    const dateStr = item.fecha_inicio
+      ? new Date(item.fecha_inicio).toLocaleDateString('es', { month: 'short', day: 'numeric' })
+      : '';
+
+    const tags = item.tags?.length
+      ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${esc(t)}</span>`).join('')
+      : '';
+
+    return `
+      <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
+        <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+        <div class="tree-row-body" data-id="${item.id}">
+          <span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>
+          <span class="tree-title">${esc(item.title)}</span>
+          ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
+          ${tags}
+          ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
+        </div>
+      </div>`;
   }
 
   attachEvents() {
     const tree = this.container.querySelector('#task-tree');
     if (!tree) return;
+
+    this.tree.setupToggle(tree);
 
     tree.addEventListener('click', (e) => {
       const tag = e.target.closest('.tag-clickable');
@@ -95,22 +85,24 @@ export class TaskView {
         return;
       }
 
-      const folderChevron = e.target.closest('.tree-folder-chevron');
-      if (folderChevron) {
-        const node = folderChevron.closest('.tree-node');
-        const childrenDiv = node.querySelector('.tree-children');
-        if (childrenDiv) {
-          const isHidden = childrenDiv.style.display === 'none';
-          childrenDiv.style.display = isHidden ? 'block' : 'none';
-          folderChevron.classList.toggle('expanded', isHidden);
-          if (isHidden) this._expandedFolders.add(node.dataset.id);
-          else this._expandedFolders.delete(node.dataset.id);
+      const checkbox = e.target.closest('.tree-checkbox');
+      if (checkbox) {
+        const row = checkbox.closest('.tree-row');
+        if (row) {
+          const item = this.store.getById(row.dataset.id);
+          if (item && item.type === 'task') {
+            item.estado = item.estado === 'completada' ? 'pendiente' : 'completada';
+            item.updated = Date.now();
+            this.store.update(item);
+            this.render();
+          }
         }
         return;
       }
 
-      const row = e.target.closest('.tree-row');
-      if (!row) return;
+      const body = e.target.closest('.tree-row-body');
+      if (!body) return;
+      const row = body.closest('.tree-row');
       const item = this.store.getById(row.dataset.id);
       if (item) this.openDetail(item);
     });
@@ -131,12 +123,12 @@ export class TaskView {
 
     const ancestors = this.store.getAncestors(item.id);
     const breadcrumb = ancestors.map(a =>
-      `<span class="bc-link" data-id="${a.id}">${this.esc(a.title)}</span>`
+      `<span class="bc-link" data-id="${a.id}">${esc(a.title)}</span>`
     ).join(' › ');
 
     title.innerHTML = breadcrumb
-      ? `<span style="font-size:13px;color:var(--text-secondary);font-weight:400;">${breadcrumb} › </span><span style="font-weight:600;">${this.esc(item.title)}</span>`
-      : this.esc(item.title);
+      ? `<span style="font-size:13px;color:var(--text-secondary);font-weight:400;">${breadcrumb} › </span><span style="font-weight:600;">${esc(item.title)}</span>`
+      : esc(item.title);
 
     body.innerHTML = this.renderDetail(item);
     const pegCnt = clipboard.getCutCount();
@@ -155,12 +147,12 @@ export class TaskView {
     const children = this.store.getChildren(item.id)
       .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
 
-    title.textContent = this.esc(item.title);
+    title.textContent = esc(item.title);
 
     body.innerHTML = `
-      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">📁 ${this.esc(item.title)}</div></div>
-      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${item.tags?.length ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('') : 'Sin tags'}</div></div>
-      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">📁 ${esc(item.title)}</div></div>
+      <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${item.tags?.length ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('') : 'Sin tags'}</div></div>
+      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${renderMarkdown(item.content || '')}</div></div>
       ${children.length > 0 ? `
         <div class="panel-field"><label>Contenido (${children.length})</label>
           <div class="detail-children">
@@ -169,7 +161,7 @@ export class TaskView {
               const icon = c.type === 'carpeta' ? '📁' : '';
               return `<div class="detail-child">
                 ${c.type === 'task' ? `<span class="tree-checkbox ${chkClass}"></span>` : ''}
-                <span class="child-link" data-id="${c.id}">${icon} ${this.esc(c.title)}</span>
+                <span class="child-link" data-id="${c.id}">${icon} ${esc(c.title)}</span>
                 ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
               </div>`;
             }).join('')}
@@ -233,6 +225,21 @@ export class TaskView {
         return;
       }
 
+      const detailChk = e.target.closest('.detail-child .tree-checkbox');
+      if (detailChk) {
+        const childLink = e.target.closest('.detail-child').querySelector('.child-link');
+        if (childLink) {
+          const childItem = this.store.getById(childLink.dataset.id);
+          if (childItem) {
+            childItem.estado = childItem.estado === 'completada' ? 'pendiente' : 'completada';
+            childItem.updated = Date.now();
+            this.store.update(childItem);
+            this.openDetail(item);
+          }
+        }
+        return;
+      }
+
       const toggle = e.target.closest('.collapsible-toggle');
       if (toggle) {
         const collapsible = toggle.nextElementSibling;
@@ -282,7 +289,7 @@ export class TaskView {
     const estadoLabel = { pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada' };
 
     const tags = item.tags?.length
-      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')
+      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('')
       : 'Sin tags';
 
     const children = this.store.getChildren(item.id)
@@ -313,7 +320,7 @@ export class TaskView {
              const chkClass = s.estado === 'completada' ? 'checked' : '';
              return `<div class="detail-child">
                <span class="tree-checkbox ${chkClass}"></span>
-               <span class="child-link" data-id="${s.id}">${this.esc(s.title)}</span>
+               <span class="child-link" data-id="${s.id}">${esc(s.title)}</span>
                ${s.priority ? `<span class="tree-badge p-${s.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][s.priority-1]}</span>` : ''}
              </div>`;
            }).join('')}
@@ -333,7 +340,7 @@ export class TaskView {
              const chkClass = c.estado === 'completada' ? 'checked' : '';
              return `<div class="detail-child">
                <span class="tree-checkbox ${chkClass}"></span>
-               <span class="child-link" data-id="${c.id}">${this.esc(c.title)}</span>
+               <span class="child-link" data-id="${c.id}">${esc(c.title)}</span>
                ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
              </div>`;
            }).join('')}
@@ -341,14 +348,14 @@ export class TaskView {
       : '';
 
     return `
-      <div class="panel-field"><label>Título</label><div class="panel-value-title">${estadoCheckbox}${this.esc(item.title)}</div></div>
+      <div class="panel-field"><label>Título</label><div class="panel-value-title">${estadoCheckbox}${esc(item.title)}</div></div>
       <div style="display:flex;gap:12px;margin-bottom:16px;">
         ${item.priority ? `<div class="panel-field" style="flex:1;margin-bottom:0;"><label>Prioridad</label><div><span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span></div></div>` : ''}
         <div class="panel-field" style="flex:1;margin-bottom:0;"><label>Estado</label><div>${estadoLabel[item.estado] || item.estado}</div></div>
       </div>
       <div class="panel-field"><label>Fechas</label><div class="panel-value-date">${item.fecha_inicio || '—'} → ${item.fecha_fin || '—'}</div></div>
       <div class="panel-field"><label>Tags</label><div class="panel-value-tags">${tags}</div></div>
-      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${renderMarkdown(item.content || '')}</div></div>
       ${siblingsHtml}
       ${childrenHtml}
     `;
@@ -356,7 +363,7 @@ export class TaskView {
 
   renderDetailEdit(item) {
     return `
-      <div class="panel-field"><label>Título</label><input id="task-edit-title" type="text" value="${this.esc(item.title)}"></div>
+      <div class="panel-field"><label>Título</label><input id="task-edit-title" type="text" value="${esc(item.title)}"></div>
       <div class="panel-field"><label>Prioridad</label>
         <div class="priority-group">
           <button class="priority-opt p-1 ${item.priority === 1 ? 'selected' : ''}" data-p="1">🔴 Alta</button>
@@ -374,7 +381,7 @@ export class TaskView {
       <div class="panel-field"><label>Fechas</label><div style="display:flex;gap:8px;"><input id="task-edit-fi" type="date" value="${item.fecha_inicio || ''}" style="flex:1;"><input id="task-edit-ff" type="date" value="${item.fecha_fin || ''}" style="flex:1;"></div></div>
       <div class="panel-field"><label>Contenido (Markdown)</label>
         <button class="btn btn-secondary" id="task-edit-md-help" style="font-size:11px;padding:3px 8px;margin-bottom:4px;">? MD</button>
-        <textarea id="task-edit-content">${this.esc(item.content || '')}</textarea>
+        <textarea id="task-edit-content">${esc(item.content || '')}</textarea>
       </div>
     `;
   }
@@ -408,39 +415,11 @@ export class TaskView {
     });
   }
 
-  renderMarkdown(text) {
-    if (!text) return '<p style="color:var(--text-muted)"><em>Sin contenido</em></p>';
-    return text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code>$1</code>')
-      .replace(/^\- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/^(?!<[hul])/gm, '<p>')
-      .replace(/$/gm, '</p>')
-      .replace(/<\/p>\n<p>/g, '</p><p>')
-      .replace(/<li><\/li>/g, '')
-      .replace(/<ul>\s*<\/ul>/g, '')
-      .replace(/<p><\/p>/g, '');
-  }
-
   emptyState() {
     return `<div class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
       <h3>No hay tareas</h3>
       <p>Crea tu primera tarea con el botón +</p>
     </div>`;
-  }
-
-  esc(s) {
-    if (typeof s !== 'string') return '';
-    const div = document.createElement('div');
-    div.textContent = s;
-    return div.innerHTML;
   }
 }

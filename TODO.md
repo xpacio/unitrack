@@ -41,7 +41,7 @@ precio_unitario NUMERIC NOT NULL DEFAULT 0
 | F2 | `sync.php` | GET con `LEFT JOIN items_finanza`, POST escribe ambas tablas |
 | F3 | `store.js`, `syncEngine.js` | `createItem()` init finanza fields, sync plano, `getTotalesMes()` actualizado |
 | F4 | `itemForm.js` | Eliminar inline `productos`. Agregar campos cantidad/precio_unitario. Manejar hijos. |
-| F5 | `finanzaView.js`, `style.css` | Tree de gastos, detalle/edición compras, pay con cascada |
+| F5 | `finanzaView.js`, CSS files | Tree de gastos, detalle/edición compras, pay con cascada |
 | F6 | SQL migration | `ALTER TABLE items DROP COLUMN` monto, periodicidad, meta, acumulado, productos |
 
 ---
@@ -77,4 +77,4 @@ precio_unitario NUMERIC NOT NULL DEFAULT 0
 | `taskView.js:203-278` | `attachPanelEvents()` — checkbox handler en detalle (hermanas/subtareas) |
 | `noteView.js:68-82` | `renderTree()` — `.tree-row-body` wrapper |
 | `noteView.js:88-131` | `attachEvents()` — target `.tree-row` → `.tree-row-body` |
-| `style.css` | `.tree-toggle` 32×32 + hover, `.tree-row-body` nuevo, `.tree-row` sin cursor |
+| `css/tree.css` | `.tree-toggle` 32×32 + hover, `.tree-row-body` nuevo, `.tree-row` sin cursor |
