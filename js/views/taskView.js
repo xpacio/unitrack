@@ -37,13 +37,13 @@ export class TaskView {
         : '';
       return `
         <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
-          <span class="tree-toggle${isExpanded ? ' expanded' : ''}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-          </span>
           <span class="tree-folder-icon">📁</span>
           <span class="tree-title">${esc(item.title)}</span>
           ${tags}
           <span class="tree-count-badge">${childCount}</span>
+          <span class="tree-toggle${isExpanded ? ' expanded' : ''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
         </div>`;
     }
 
@@ -59,9 +59,6 @@ export class TaskView {
 
     return `
       <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
-        <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-        </span>
         <div class="tree-row-body" data-id="${item.id}">
           ${item.type === 'task'
             ? `<span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>`
@@ -71,6 +68,9 @@ export class TaskView {
           ${tags}
           ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
         </div>
+        <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
       </div>`;
   }
 }

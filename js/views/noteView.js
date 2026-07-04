@@ -32,15 +32,15 @@ export class NoteView {
 
       return `
         <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
-          <span class="tree-toggle${isExpanded ? ' expanded' : ''}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-          </span>
           <div class="tree-row-body" data-id="${item.id}">
             <span class="tree-folder-icon">📁</span>
             <span class="tree-title">${esc(item.title)}</span>
             ${tags}
             <span class="tree-count-badge">${childCount}</span>
           </div>
+          <span class="tree-toggle${isExpanded ? ' expanded' : ''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </span>
         </div>`;
     }
 
@@ -48,9 +48,6 @@ export class NoteView {
 
     return `
       <div class="tree-row" data-id="${item.id}" style="--tree-depth:${depth}">
-        <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-        </span>
         <div class="tree-row-body" data-id="${item.id}">
           <span class="tree-type-icon">${getTypeIcon(item.type)}</span>
           <span class="tree-title">${esc(item.title)}</span>
@@ -59,6 +56,9 @@ export class NoteView {
         <span class="tree-actions">
           <button class="tree-action" data-action="add-sub" data-id="${item.id}" title="Agregar sub-nota">+</button>
           <button class="tree-action danger" data-action="delete" data-id="${item.id}" title="Eliminar">✕</button>
+        </span>
+        <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </span>
       </div>`;
   }

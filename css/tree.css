@@ -45,7 +45,7 @@
   color: var(--text-muted);
   border-radius: var(--radius);
   transition: transform var(--transition), background var(--transition);
-  margin-right: 4px;
+  margin-left: 4px;
   cursor: pointer;
 }
 
