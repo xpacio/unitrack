@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { esc, renderMarkdown } from '../helpers.js';
+import { esc, renderMarkdown, getTypeIcon } from '../helpers.js';
 import { TreeRenderer } from '../treeRenderer.js';
 
 export class NoteView {
@@ -52,6 +52,7 @@ export class NoteView {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </span>
         <div class="tree-row-body" data-id="${item.id}">
+          <span class="tree-type-icon">${getTypeIcon(item.type)}</span>
           <span class="tree-title">${esc(item.title)}</span>
           ${preview ? `<span class="tree-preview">— ${esc(preview)}</span>` : ''}
         </div>

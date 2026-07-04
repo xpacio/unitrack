@@ -1,4 +1,6 @@
-import { todayLocalStr, parseLocalDate } from './helpers.js';
+import { todayLocalStr, parseLocalDate, formatDateInput, ITEM_TYPES, PRIORITY_LABELS, TYPE_LABELS } from './helpers.js';
+import { Persistence } from './persistence.js';
+import { SyncEngine } from './syncEngine.js';
 
 export function createItem(data = {}) {
   const type = data.type || 'task';
@@ -17,7 +19,8 @@ export function createItem(data = {}) {
     periodicidad: data.periodicidad || null,
     meta: data.meta ?? 0,
     acumulado: data.acumulado ?? 0,
-    productos: data.productos || [],
+    cantidad: data.cantidad ?? 1,
+    precio_unitario: data.precio_unitario ?? 0,
     created: Date.now(),
     updated: Date.now(),
   };
@@ -27,19 +30,46 @@ export class Store {
   constructor(options = {}) {
     this.items = [];
     this._syncing = false;
-    this._syncUrl = '/api/sync.php';
     this._pendingCount = 0;
     this._lastSyncAt = 0;
     this._online = navigator.onLine;
+    this._dirtyIds = new Set();
+    this._pendingDeletes = [];
+    this._syncNeeded = false;
+    this._persistence = new Persistence();
+    this._syncEngine = new SyncEngine({
+      getCsrfToken: options.getCsrfToken || (() => ''),
+    });
     this._storageMode = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
     if (this._storageMode === 'online_first') {
       this._pendingCount = 0;
     } else {
       this.load();
+      this._markAllDirty();
       if (this.items.length === 0 && !options.noSeed) this.seed();
     }
     this.startAutoSync();
     this._initOnlineListeners();
+  }
+
+  _markAllDirty() {
+    for (const item of this.items) {
+      this._dirtyIds.add(item.id);
+    }
+    this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
+  }
+
+  _buildSyncPayload() {
+    const payload = [];
+    for (const item of this.items) {
+      if (this._dirtyIds.has(item.id)) {
+        payload.push({...item});
+      }
+    }
+    for (const del of this._pendingDeletes) {
+      payload.push({...del});
+    }
+    return payload;
   }
 
   _initOnlineListeners() {
@@ -70,17 +100,12 @@ export class Store {
 
   load() {
     if (this._storageMode === 'online_first') return;
-    try {
-      const raw = localStorage.getItem('unified_items');
-      this.items = raw ? JSON.parse(raw) : [];
-    } catch {
-      this.items = [];
-    }
+    this.items = this._persistence.load();
   }
 
   save() {
     if (this._storageMode === 'online_first') return;
-    localStorage.setItem('unified_items', JSON.stringify(this.items));
+    this._persistence.save(this.items);
   }
 
   setStorageMode(mode) {
@@ -89,7 +114,7 @@ export class Store {
     if (mode === 'online_first') {
       this.items = [];
       this._pendingCount = 0;
-      localStorage.removeItem('unified_items');
+      this._persistence.clear();
     } else {
       this.load();
     }
@@ -99,8 +124,10 @@ export class Store {
   clear() {
     this.items = [];
     this._lastSyncAt = 0;
+    this._dirtyIds.clear();
+    this._pendingDeletes = [];
     this._pendingCount = 0;
-    localStorage.removeItem('unified_items');
+    this._persistence.clear();
     this._dispatchStatus();
   }
 
@@ -135,13 +162,23 @@ export class Store {
 
   getDescendantIds(parentId) {
     const ids = [];
+    const childrenMap = new Map();
+    for (const item of this.items) {
+      const pid = item.parent_id;
+      if (pid != null) {
+        if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+        childrenMap.get(pid).push(item.id);
+      }
+    }
     const queue = [parentId];
     while (queue.length) {
       const pid = queue.shift();
-      const kids = this.items.filter(i => i.parent_id === pid);
-      for (const k of kids) {
-        ids.push(k.id);
-        queue.push(k.id);
+      const kids = childrenMap.get(pid);
+      if (kids) {
+        for (const id of kids) {
+          ids.push(id);
+          queue.push(id);
+        }
       }
     }
     return ids;
@@ -149,14 +186,26 @@ export class Store {
 
   add(item) {
     this.items.push(item);
+    this._dirtyIds.add(item.id);
+    this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
     this.save();
-    this._pendingCount++;
     this._dispatchStatus();
     if (this._storageMode === 'online_first') {
       this.sync().catch(() => {});
     } else {
-      this.sync();
+      this.sync().catch(() => {});
     }
+  }
+
+  batchAdd(items) {
+    for (const item of items) {
+      this.items.push(item);
+      this._dirtyIds.add(item.id);
+    }
+    this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
+    this.save();
+    this._dispatchStatus();
+    this.sync().catch(() => {});
   }
 
   update(item) {
@@ -164,13 +213,14 @@ export class Store {
     if (idx === -1) return;
     item.updated = Date.now();
     this.items[idx] = item;
+    this._dirtyIds.add(item.id);
+    this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
     this.save();
-    this._pendingCount++;
     this._dispatchStatus();
     if (this._storageMode === 'online_first') {
       this.sync().catch(() => {});
     } else {
-      this.sync();
+      this.sync().catch(() => {});
     }
   }
 
@@ -189,50 +239,51 @@ export class Store {
     item.parent_id = newParentId;
     item.updated = Date.now();
     this.items[this.items.findIndex(i => i.id === itemId)] = item;
+    this._dirtyIds.add(itemId);
+    this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
     this.save();
-    this._pendingCount++;
     this._dispatchStatus();
-    this.sync();
+    this.sync().catch(() => {});
   }
 
   delete(id) {
     const descIds = this.getDescendantIds(id);
     const allIds = [id, ...descIds];
-    const deletedSet = new Map();
     for (const did of allIds) {
-      deletedSet.set(did, { id: did });
+      this._dirtyIds.delete(did);
+      this._pendingDeletes.push({ id: did, _delete: true });
     }
     this.items = this.items.filter(i => !allIds.includes(i.id));
+    this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
     this.save();
-    this._pendingCount++;
     this._dispatchStatus();
     if (this._storageMode === 'online_first') {
       this.sync().catch(() => {});
     } else {
-      this.sync();
+      this.sync().catch(() => {});
     }
   }
 
   async sync() {
-    if (!navigator.onLine || this._syncing) return;
+    if (this._syncing) {
+      this._syncNeeded = true;
+      return;
+    }
+    await this._syncInternal();
+  }
+
+  async _syncInternal() {
+    if (!navigator.onLine) return;
     this._syncing = true;
+    this._syncNeeded = false;
     this._dispatchStatus();
+    let success = false;
     try {
-      const payload = this.items.map(i => ({...i}));
-      const res = await fetch(this._syncUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ items: payload, lastSync: this._lastSyncAt }),
-      });
-      if (!res.ok) {
-        if (res.status === 401) {
-          window.dispatchEvent(new CustomEvent('auth-required'));
-        }
-        return;
-      }
-      const data = await res.json();
+      const payload = this._buildSyncPayload();
+      const data = await this._syncEngine.sync(payload, this._lastSyncAt);
+      if (!data) return;
       if (!data.changes) return;
+      success = true;
 
       for (const serverItem of data.changes) {
         const idx = this.items.findIndex(i => i.id === serverItem.id);
@@ -247,6 +298,8 @@ export class Store {
         this._lastSyncAt = data.serverTime;
       }
 
+      this._dirtyIds.clear();
+      this._pendingDeletes = [];
       this._pendingCount = 0;
       this.save();
     } catch {
@@ -254,6 +307,9 @@ export class Store {
     } finally {
       this._syncing = false;
       this._dispatchStatus();
+      if (success && this._syncNeeded) {
+        await this._syncInternal();
+      }
     }
   }
 
@@ -327,23 +383,33 @@ export class Store {
       fecha_inicio: todayLocalStr(),
       tags: [...(item.tags || [])],
     });
-    this.add(gasto);
+    this.items.push(gasto);
+    this._dirtyIds.add(gasto.id);
 
     const advance = item.periodicidad === 'bimestral' ? 60 : 30;
     const next = parseLocalDate(item.fecha_inicio);
     next.setDate(next.getDate() + advance);
-    item.fecha_inicio = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+    item.fecha_inicio = formatDateInput(next);
     item.updated = Date.now();
-    this.update(item);
+    this._dirtyIds.add(item.id);
+
+    this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
+    this.save();
+    this._dispatchStatus();
+    this.sync();
 
     return gasto;
+  }
+
+  _isGastoChild(item) {
+    return !!item.parent_id && this.getById(item.parent_id)?.type === 'gasto';
   }
 
   getTotalesMes() {
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const gastosMes = this.items.filter(i =>
-      i.type === 'gasto' && i.fecha_inicio >= monthStart
+      i.type === 'gasto' && !this._isGastoChild(i) && i.fecha_inicio >= monthStart
     );
     const totalGastos = gastosMes.reduce((s, i) => s + (i.monto || 0), 0);
     const suscripciones = this.items.filter(i => i.type === 'suscripcion' && i.estado === 'activa');
@@ -354,9 +420,9 @@ export class Store {
     const dPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const mesAnt = `${dPrev.getFullYear()}-${String(dPrev.getMonth() + 1).padStart(2, '0')}-01`;
     const dPrevEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-    const mesAntFin = `${dPrevEnd.getFullYear()}-${String(dPrevEnd.getMonth() + 1).padStart(2, '0')}-${String(dPrevEnd.getDate()).padStart(2, '0')}`;
+    const mesAntFin = formatDateInput(dPrevEnd);
     const gastosMesAnt = this.items.filter(i =>
-      i.type === 'gasto' && i.fecha_inicio >= mesAnt && i.fecha_inicio <= mesAntFin
+      i.type === 'gasto' && !this._isGastoChild(i) && i.fecha_inicio >= mesAnt && i.fecha_inicio <= mesAntFin
     );
     const totalAnt = gastosMesAnt.reduce((s, i) => s + (i.monto || 0), 0);
     const diff = totalAnt > 0 ? Math.round((totalGastos - totalAnt) / totalAnt * 100) : 0;
@@ -396,13 +462,17 @@ export class Store {
     add({ type: 'event', title: 'Demo con el equipo', content: 'Mostrar avances del MVP', parent_id: null, priority: 2, fecha_inicio: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10), tags: ['ritual'] });
 
     const hoy = new Date();
-    const mesStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const mesStr = (d) => formatDateInput(d);
     add({ type: 'suscripcion', title: 'Netflix', content: 'Plan Premium 4K', monto: 199, periodicidad: 'mensual', fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 15)), tags: ['entretenimiento'], estado: 'activa' });
     const intDate = new Date();
     intDate.setDate(intDate.getDate() - 5);
     add({ type: 'suscripcion', title: 'Internet TotalPlay', content: '300mb fibra óptica', monto: 899, periodicidad: 'mensual', fecha_inicio: mesStr(intDate), tags: ['servicios'], estado: 'activa' });
     add({ type: 'suscripcion', title: 'Seguro auto', content: 'Seguro cobertura amplia', monto: 2400, periodicidad: 'bimestral', fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1)), tags: ['seguros'], estado: 'activa' });
-    add({ type: 'gasto', title: 'Supermercado Soriana', content: 'Despensa quincenal', monto: 1250, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), tags: ['alimentacion'], productos: [{ nombre: 'Leche', cantidad: 2, precio_unitario: 25.50 }, { nombre: 'Pan Bimbo', cantidad: 1, precio_unitario: 45.00 }, { nombre: 'Arroz', cantidad: 3, precio_unitario: 18.90 }, { nombre: 'Huevos', cantidad: 2, precio_unitario: 32.00 }] });
+    const superId = add({ type: 'gasto', title: 'Supermercado Soriana', content: 'Despensa quincenal', monto: 250.70, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), tags: ['alimentacion'] });
+    add({ type: 'gasto', title: 'Leche', content: '', monto: 51, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), parent_id: superId, tags: ['alimentacion'], cantidad: 2, precio_unitario: 25.50 });
+    add({ type: 'gasto', title: 'Pan Bimbo', content: '', monto: 45, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), parent_id: superId, tags: ['alimentacion'], cantidad: 1, precio_unitario: 45 });
+    add({ type: 'gasto', title: 'Arroz', content: '', monto: 56.70, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), parent_id: superId, tags: ['alimentacion'], cantidad: 3, precio_unitario: 18.90 });
+    add({ type: 'gasto', title: 'Huevos', content: '', monto: 64, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 5)), parent_id: superId, tags: ['alimentacion'], cantidad: 2, precio_unitario: 32 });
     add({ type: 'gasto', title: 'Gasolina', content: 'Tanque lleno', monto: 850, fecha_inicio: mesStr(new Date(hoy.getFullYear(), hoy.getMonth(), 3)), tags: ['transporte'] });
     add({ type: 'ahorro', title: 'Fondo de emergencia', content: 'Meta $50,000 para imprevistos', monto: 50000, meta: 50000, acumulado: 8500, tags: ['meta'] });
     add({ type: 'ahorro', title: 'Viaje fin de año', content: 'Ahorro para vacaciones diciembre', monto: 15000, meta: 15000, acumulado: 3200, tags: ['personal'] });

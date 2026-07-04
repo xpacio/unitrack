@@ -1,44 +1,14 @@
 <?php
-header('Content-Type: application/json');
+require __DIR__ . '/db.php';
 
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$host = $_SERVER['HTTP_HOST'] ?? '';
-$expectedOrigin = "$scheme://$host";
-$requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
-
-if ($requestOrigin === $expectedOrigin || $requestOrigin === '') {
-    header("Access-Control-Allow-Origin: $expectedOrigin");
-    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
-    header('Access-Control-Allow-Credentials: true');
-}
-
-ini_set('session.cookie_httponly', 1);
-ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_samesite', 'Lax');
-if ($scheme === 'https') {
-    ini_set('session.cookie_secure', 1);
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-  http_response_code(204);
-  exit;
-}
-
-session_start();
-
-$config = require __DIR__ . '/config.php';
-
-try {
-  $dsn = "pgsql:host={$config['host']};port={$config['port']};dbname={$config['dbname']}";
-  $pdo = new PDO($dsn, $config['user'], $config['password'], [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-  ]);
-} catch (PDOException $e) {
-  http_response_code(500);
-  echo json_encode(['error' => 'DB connection failed']);
-  exit;
+function validateCsrfToken(): void {
+  $header = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+  $sessionToken = $_SESSION['csrf_token'] ?? '';
+  if ($header === '' || $sessionToken === '' || !hash_equals($sessionToken, $header)) {
+    http_response_code(403);
+    echo json_encode(['error' => 'CSRF token inválido']);
+    exit;
+  }
 }
 
 $action = $_GET['action'] ?? '';
@@ -78,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'register') {
   $_SESSION['user_id'] = $userId;
   $_SESSION['user_email'] = $email;
   $_SESSION['user_nombre'] = $nombre;
+  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
   session_regenerate_id(true);
 
   echo json_encode(['user' => ['id' => $userId, 'email' => $email, 'nombre' => $nombre]]);
@@ -108,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
   $_SESSION['user_id'] = (int) $user['id'];
   $_SESSION['user_email'] = $user['email'];
   $_SESSION['user_nombre'] = $user['nombre'];
+  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
   session_regenerate_id(true);
 
   echo json_encode(['user' => ['id' => (int) $user['id'], 'email' => $user['email'], 'nombre' => $user['nombre']]]);
@@ -115,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'logout') {
+  validateCsrfToken();
   $_SESSION = [];
   setcookie(session_name(), '', [
     'expires' => time() - 3600,
@@ -153,11 +126,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'me') {
   }
   $_SESSION['user_email'] = $dbUser['email'];
   $_SESSION['user_nombre'] = $dbUser['nombre'];
-  echo json_encode(['user' => [
-    'id' => $_SESSION['user_id'],
-    'email' => $_SESSION['user_email'],
-    'nombre' => $_SESSION['user_nombre'],
-  ]]);
+  echo json_encode([
+    'user' => [
+      'id' => $_SESSION['user_id'],
+      'email' => $_SESSION['user_email'],
+      'nombre' => $_SESSION['user_nombre'],
+    ],
+    'csrf_token' => $_SESSION['csrf_token'] ?? '',
+  ]);
   exit;
 }
 
@@ -293,6 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'reset_password_with_to
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
+  validateCsrfToken();
   if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['error' => 'No autenticado']);

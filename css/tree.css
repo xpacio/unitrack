@@ -157,6 +157,17 @@
   flex-shrink: 0;
 }
 
+.tree-type-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.tree-type-icon svg { width: 16px; height: 16px; }
+
 .tree-count-badge {
   font-size: 11px;
   color: var(--text-secondary);

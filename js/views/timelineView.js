@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { todayLocalStr, parseLocalDate } from '../helpers.js';
+import { todayLocalStr, parseLocalDate, esc, renderMarkdown } from '../helpers.js';
 
 export class TimelineView {
   constructor(store, form, onTagClick) {
@@ -155,23 +155,23 @@ export class TimelineView {
     const countdownClass = countdown.urgent ? 'urgent' : countdown.soon ? 'soon' : 'later';
 
     const tags = item.tags?.length
-      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')
+      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('')
       : '';
 
     return `
-      <div class="panel-field"><label>Título</label><div class="panel-value-title">${this.esc(item.title)}</div></div>
+      <div class="panel-field"><label>Título</label><div class="panel-value-title">${esc(item.title)}</div></div>
       <div class="panel-field"><label>Tipo</label><div><span class="tl-type-badge ${item.type}">${typeLabel}</span></div></div>
       ${item.priority ? `<div class="panel-field"><label>Prioridad</label><div><span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span></div></div>` : ''}
       <div class="panel-field"><label>Fechas</label><div class="panel-value-date">${item.fecha_inicio || '—'} → ${item.fecha_fin || '—'}</div></div>
       <div class="panel-field"><label>Tags</label><div class="panel-value-tags">${tags || '<span class="text-muted">Sin tags</span>'}</div></div>
       <div class="panel-field"><label>Cuenta regresiva</label><div><span class="tl-countdown ${countdownClass}">${countdown.text}</span></div></div>
-      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${renderMarkdown(item.content || '')}</div></div>
     `;
   }
 
   renderEdit(item) {
     return `
-      <div class="panel-field"><label>Título</label><input id="tl-edit-title" type="text" value="${this.esc(item.title)}" style="width:100%;"></div>
+      <div class="panel-field"><label>Título</label><input id="tl-edit-title" type="text" value="${esc(item.title)}" style="width:100%;"></div>
       <div class="panel-field"><label>Prioridad</label>
         <div class="priority-group">
           <button class="priority-opt p-1 ${item.priority === 1 ? 'selected' : ''}" data-p="1">🔴 Alta</button>
@@ -182,7 +182,7 @@ export class TimelineView {
       <div class="panel-field"><label>Fechas</label><div style="display:flex;gap:8px;"><input id="tl-edit-fi" type="date" value="${item.fecha_inicio || ''}" style="flex:1;"><input id="tl-edit-ff" type="date" value="${item.fecha_fin || ''}" style="flex:1;"></div></div>
       <div class="panel-field"><label>Contenido (Markdown)</label>
         <button class="btn btn-secondary" id="tl-edit-md-help" style="font-size:11px;padding:3px 8px;margin-bottom:4px;">? MD</button>
-        <textarea id="tl-edit-content" style="width:100%;min-height:150px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:13px;resize:vertical;">${this.esc(item.content || '')}</textarea>
+        <textarea id="tl-edit-content" style="width:100%;min-height:150px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:13px;resize:vertical;">${esc(item.content || '')}</textarea>
       </div>
     `;
   }
@@ -259,19 +259,19 @@ export class TimelineView {
     const typeLabel = item.type === 'task' ? 'Tarea' : 'Evento';
     const isPast = parseLocalDate(item.fecha_inicio) < new Date(new Date().toDateString());
     const tags = item.tags?.length
-      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}" style="font-size:9px;padding:1px 4px;">${this.esc(t)}</span>`).join('')
+      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}" style="font-size:9px;padding:1px 4px;">${esc(t)}</span>`).join('')
       : '';
 
     return `
       <div class="tl-card ${isPast ? 'past' : ''}" data-id="${item.id}">
         <div class="tl-card-priority p-${item.priority ?? 2}"></div>
         <div class="tl-card-body">
-          <div class="tl-card-title">${this.esc(item.title)}</div>
+          <div class="tl-card-title">${esc(item.title)}</div>
           <div class="tl-card-meta">
             <span class="tl-card-type ${item.type}">${typeLabel}</span>
             <span class="tl-card-date">${this.formatTime(item.fecha_inicio)}</span>
             ${tags ? `<span class="tl-card-tags">${tags}</span>` : ''}
-            ${item.content ? `<span class="tl-card-preview">${this.esc(item.content.slice(0, 60))}</span>` : ''}
+            ${item.content ? `<span class="tl-card-preview">${esc(item.content.slice(0, 60))}</span>` : ''}
           </div>
         </div>
         <div class="tl-card-right">
@@ -322,27 +322,6 @@ export class TimelineView {
     return d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
   }
 
-  renderMarkdown(text) {
-    if (!text) return '<p style="color:var(--text-muted)"><em>Sin contenido</em></p>';
-    return text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code>$1</code>')
-      .replace(/^\- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/^(?!<[hul])/gm, '<p>')
-      .replace(/$/gm, '</p>')
-      .replace(/<\/p>\n<p>/g, '</p><p>')
-      .replace(/<li><\/li>/g, '')
-      .replace(/<ul>\s*<\/ul>/g, '')
-      .replace(/<p><\/p>/g, '');
-  }
-
   startClock() {
     if (this.interval) clearInterval(this.interval);
     this.interval = setInterval(() => {
@@ -350,10 +329,14 @@ export class TimelineView {
     }, 60000);
   }
 
-  destroy() {
-    if (this.interval) {
-      clearInterval(this.interval);
-      this.interval = null;
+  setActive(active) {
+    if (active) {
+      this.startClock();
+    } else {
+      if (this.interval) {
+        clearInterval(this.interval);
+        this.interval = null;
+      }
     }
   }
 
@@ -365,10 +348,4 @@ export class TimelineView {
     </div>`;
   }
 
-  esc(s) {
-    if (typeof s !== 'string') return '';
-    const div = document.createElement('div');
-    div.textContent = s;
-    return div.innerHTML;
-  }
 }

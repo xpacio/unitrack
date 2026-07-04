@@ -5,7 +5,9 @@ import { TaskView } from './views/taskView.js';
 import { NoteView } from './views/noteView.js';
 import { TimelineView } from './views/timelineView.js';
 import { FinanzaView } from './views/finanzaView.js';
+import { esc } from './helpers.js';
 import * as clipboard from './clipboard.js';
+import { initAuthUI } from './authUI.js';
 
 const auth = new Auth();
 let store = null;
@@ -19,7 +21,7 @@ let currentView = null;
 const views = {};
 
 async function initApp() {
-  store = new Store({ noSeed: true });
+  store = new Store({ noSeed: true, getCsrfToken: () => auth.getCsrfToken() });
   clipboard.init(store);
   form = new ItemForm(store, onSave);
 
@@ -62,9 +64,6 @@ async function initApp() {
     }, 200);
   });
 
-  document.getElementById('btn-mode-toggle')?.addEventListener('click', toggleMode);
-  document.getElementById('btn-storage-toggle')?.addEventListener('click', toggleStorageMode);
-
   document.getElementById('panel-close').addEventListener('click', () => {
     document.getElementById('detail-panel').classList.remove('open');
   });
@@ -97,14 +96,14 @@ async function initApp() {
     }
   });
 
-  detectMode();
+  initDisplayMode();
   window.addEventListener('sync-status-changed', (e) => {
-    updateSyncIndicator(e.detail);
+    updateBrandStatus(e.detail);
     if (!e.detail.syncing && currentView) {
       currentView.render();
     }
   });
-  updateSyncIndicator(store.getSyncStatus());
+  updateBrandStatus(store.getSyncStatus());
 
   await store.sync();
   currentView.render();
@@ -140,7 +139,9 @@ function switchView(view) {
   document.querySelectorAll('.view-container').forEach(c => c.classList.add('hidden'));
   document.getElementById(`view-${view}`).classList.remove('hidden');
   document.getElementById('detail-panel').classList.remove('open');
+  currentView?.setActive?.(false);
   currentView = views[view];
+  currentView.setActive?.(true);
   currentView.render();
 }
 
@@ -189,8 +190,8 @@ function renderSearchResults(q) {
       const preview = (item.content || '').replace(/[#*`\[\]]/g, '').trim().slice(0, 80);
       html += `<div class="search-result-item" data-item-id="${item.id}">
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(item.title)}</div>
-          ${preview ? `<div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(preview)}</div>` : ''}
+          <div style="font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(item.title)}</div>
+          ${preview ? `<div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(preview)}</div>` : ''}
         </div>
         ${item.priority ? `<span class="tree-badge p-${item.priority}">${['Alta','Media','Baja'][item.priority-1]}</span>` : ''}
         ${item.monto ? `<span style="font-size:13px;font-weight:600;flex-shrink:0;">$${Number(item.monto).toLocaleString('es-MX',{minimumFractionDigits:2})}</span>` : ''}
@@ -223,13 +224,6 @@ function renderSearchResults(q) {
   });
 }
 
-function escHtml(s) {
-  if (typeof s !== 'string') return '';
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
 function showTagResults(tag) {
   const items = store.getByTag(tag);
   const container = document.getElementById('tag-results');
@@ -238,7 +232,7 @@ function showTagResults(tag) {
     <div style="max-width:560px;margin:0 auto;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <button class="btn btn-secondary" id="tag-back-btn" style="font-size:12px;">← Volver</button>
-        <h2 style="font-size:16px;font-weight:600;">Tag: <span class="tag">${escHtml(tag)}</span></h2>
+        <h2 style="font-size:16px;font-weight:600;">Tag: <span class="tag">${esc(tag)}</span></h2>
         <span style="font-size:12px;color:var(--text-secondary);">${items.length} resultado${items.length !== 1 ? 's' : ''}</span>
       </div>
       ${items.length === 0
@@ -263,8 +257,8 @@ function showTagResults(tag) {
       <div class="tag-result-item" data-item-id="${item.id}">
         <span class="type-badge ${item.type}">${item.type === 'task' ? 'Tarea' : item.type === 'note' ? 'Nota' : 'Evento'}</span>
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(item.title)}</div>
-          ${preview ? `<div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(preview)}</div>` : ''}
+          <div style="font-weight:500;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(item.title)}</div>
+          ${preview ? `<div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(preview)}</div>` : ''}
         </div>
         ${item.priority ? `<span class="tree-badge p-${item.priority}">${['Alta','Media','Baja'][item.priority-1]}</span>` : ''}
       </div>
@@ -273,281 +267,112 @@ function showTagResults(tag) {
 
 }
 
-function updateSyncIndicator(status) {
-  const indicator = document.getElementById('sync-dots');
-  const pending = document.getElementById('sync-pending');
+function updateBrandStatus(status) {
+  const brand = document.getElementById('brand');
+  const badge = document.getElementById('brand-badge');
+  if (!brand) return;
 
-  pending.textContent = status.pendingCount;
-  pending.classList.toggle('hidden', status.pendingCount === 0);
-
-  indicator.classList.remove('status-green', 'status-yellow', 'status-red', 'status-blue', 'status-indicator-animated');
+  brand.className = 'brand';
+  badge?.classList.add('hidden');
 
   if (status.syncing) {
-    indicator.classList.add('status-blue', 'status-indicator-animated');
+    brand.classList.add('status-syncing');
   } else if (!status.online) {
-    indicator.classList.add('status-red');
+    brand.classList.add('status-offline');
   } else if (status.pendingCount > 0) {
-    indicator.classList.add('status-yellow', 'status-indicator-animated');
-  } else {
-    indicator.classList.add('status-green', 'status-indicator-animated');
+    badge.textContent = status.pendingCount;
+    badge.classList.remove('hidden');
   }
 
   const title = status.syncing ? 'Sincronizando…'
     : !status.online ? 'Sin conexión'
     : status.pendingCount > 0 ? `${status.pendingCount} cambio${status.pendingCount !== 1 ? 's' : ''} pendiente${status.pendingCount !== 1 ? 's' : ''}`
     : 'Todo sincronizado';
-  document.getElementById('sync-indicator').title = title;
+  brand.title = title;
 }
 
-function detectMode() {
+function initDisplayMode() {
   const saved = localStorage.getItem('unitrack_mode');
   if (saved === 'mobile' || saved === 'desktop') {
-    applyMode(saved);
-    return;
+    applyModeInternal(saved);
+  } else {
+    const auto = window.matchMedia('(max-width: 640px)').matches ? 'mobile' : 'desktop';
+    applyModeInternal(auto);
   }
-  const auto = window.matchMedia('(max-width: 640px)').matches ? 'mobile' : 'desktop';
-  applyMode(auto);
 }
 
-function applyMode(mode) {
+function applyModeInternal(mode) {
   const isMobile = mode === 'mobile';
   document.body.classList.toggle('mode-mobile', isMobile);
-  localStorage.setItem('unitrack_mode', mode);
-  const toggleBtn = document.getElementById('btn-mode-toggle');
-  if (toggleBtn) {
-    toggleBtn.classList.toggle('active', isMobile);
-    toggleBtn.title = isMobile ? 'Modo móvil - Haz clic para cambiar a escritorio' : 'Modo escritorio - Haz clic para cambiar a móvil';
-  }
   if (currentView && typeof currentView.render === 'function') {
     currentView.render();
   }
 }
 
-function toggleMode() {
-  const next = document.body.classList.contains('mode-mobile') ? 'desktop' : 'mobile';
-  applyMode(next);
-}
-
-function applyStorageMode() {
-  const mode = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
-  const btn = document.getElementById('btn-storage-toggle');
-  if (btn) {
-    btn.title = mode === 'online_first'
-      ? 'Modo online-first — los datos se guardan en el servidor'
-      : 'Modo offline-first — los datos se guardan localmente';
-    btn.classList.toggle('active', mode === 'online_first');
-  }
-}
-
-function toggleStorageMode() {
-  const current = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
-  const next = current === 'offline_first' ? 'online_first' : 'offline_first';
-  localStorage.setItem('unitrack_storage_mode', next);
-  if (store) {
-    store.setStorageMode(next);
-    if (next === 'online_first') {
-      store.sync().then(() => {
-        currentView?.render();
-        updateSyncIndicator(store.getSyncStatus());
-      });
-    } else {
-      currentView?.render();
-      updateSyncIndicator(store.getSyncStatus());
-    }
-  }
-  applyStorageMode();
-}
-
 window.matchMedia('(max-width: 640px)').addEventListener('change', (e) => {
   if (!localStorage.getItem('unitrack_mode')) {
-    applyMode(e.matches ? 'mobile' : 'desktop');
+    applyModeInternal(e.matches ? 'mobile' : 'desktop');
   }
 });
 
-function initAuth() {
-  const loginForm = document.getElementById('auth-login');
-  const registerForm = document.getElementById('auth-register');
-  const loginError = document.getElementById('login-error');
-  const registerError = document.getElementById('register-error');
-  const forgotError = document.getElementById('forgot-error');
-  const forgotOk = document.getElementById('forgot-ok');
-  const forgotEmail = document.getElementById('forgot-email');
+function initUserModalSettings() {
+  const storageMode = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
+  const sm = document.querySelector('input[name="storage-mode"][value="' + storageMode + '"]');
+  if (sm) sm.checked = true;
 
-  document.querySelectorAll('.auth-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      const target = tab.dataset.authTab;
-      document.querySelectorAll('.auth-form').forEach(f => f.classList.add('hidden'));
-      document.getElementById(`auth-${target}`).classList.remove('hidden');
-      loginError.textContent = '';
-      registerError.textContent = '';
-      forgotError.textContent = '';
-      forgotOk.classList.add('hidden');
-    });
-  });
+  const savedMode = localStorage.getItem('unitrack_mode');
+  const displayMode = savedMode === 'mobile' || savedMode === 'desktop' ? savedMode : 'auto';
+  const dm = document.querySelector('input[name="display-mode"][value="' + displayMode + '"]');
+  if (dm) dm.checked = true;
+}
 
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.textContent = '';
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    try {
-      await auth.login(email, password);
-      await onAuthenticated();
-    } catch (err) {
-      loginError.textContent = err.message;
+function setStorageMode(mode) {
+  localStorage.setItem('unitrack_storage_mode', mode);
+  if (store) {
+    store.setStorageMode(mode);
+    if (mode === 'online_first') {
+      store.sync().then(() => {
+        currentView?.render();
+        updateBrandStatus(store.getSyncStatus());
+      }).catch(() => {});
+    } else {
+      currentView?.render();
+      updateBrandStatus(store.getSyncStatus());
     }
-  });
-
-  registerForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    registerError.textContent = '';
-    const nombre = document.getElementById('register-nombre').value.trim();
-    const email = document.getElementById('register-email').value.trim();
-    const password = document.getElementById('register-password').value;
-    try {
-      await auth.register(email, password, nombre);
-      await onAuthenticated();
-    } catch (err) {
-      registerError.textContent = err.message;
-    }
-  });
-
-  document.getElementById('btn-user')?.addEventListener('click', () => {
-    const avatar = document.getElementById('user-avatar');
-    const nameEl = document.getElementById('user-name');
-    const emailEl = document.getElementById('user-email');
-    const name = auth.user?.nombre || auth.user?.email || 'Usuario';
-    avatar.textContent = name.charAt(0).toUpperCase();
-    nameEl.textContent = name;
-    emailEl.textContent = auth.user?.email || '';
-    document.getElementById('modal-user').classList.add('open');
-  });
-
-  document.getElementById('modal-user-close').addEventListener('click', () => {
-    document.getElementById('modal-user').classList.remove('open');
-  });
-  document.getElementById('modal-user').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('modal-user')) {
-      document.getElementById('modal-user').classList.remove('open');
-    }
-  });
-
-  document.getElementById('btn-logout').addEventListener('click', async () => {
-    document.getElementById('modal-user').classList.remove('open');
-    store?.destroy();
-    localStorage.clear();
-    store = null;
-    try {
-      await auth.logout();
-    } catch {}
-    showAuth();
-  });
-
-  document.getElementById('btn-reset-user')?.addEventListener('click', async () => {
-    document.getElementById('modal-user').classList.remove('open');
-    if (!confirm('¿Restablecer UniTrack? Se borrarán todos los datos locales y se cerrará tu sesión.')) return;
-    await resetApp();
-    location.reload();
-  });
-
-  const pwDisplay = document.getElementById('new-pw-display');
-  const pwModal = document.getElementById('modal-change-pw');
-
-  function generarPassword(len = 10) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-    let pwd = '';
-    for (let i = 0; i < len; i++) {
-      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return pwd;
   }
+}
 
-  document.getElementById('btn-change-pw')?.addEventListener('click', () => {
-    pwDisplay.textContent = generarPassword();
-    pwModal.classList.add('open');
-  });
+function setDisplayMode(mode) {
+  if (mode === 'auto') {
+    localStorage.removeItem('unitrack_mode');
+    const auto = window.matchMedia('(max-width: 640px)').matches ? 'mobile' : 'desktop';
+    applyModeInternal(auto);
+  } else {
+    localStorage.setItem('unitrack_mode', mode);
+    applyModeInternal(mode);
+  }
+}
 
-  document.getElementById('modal-change-pw-close')?.addEventListener('click', () => {
-    pwModal.classList.remove('open');
+document.querySelectorAll('input[name="storage-mode"]').forEach(el => {
+  el.addEventListener('change', (e) => {
+    if (e.target.checked) setStorageMode(e.target.value);
   });
-  pwModal?.addEventListener('click', (e) => {
-    if (e.target === pwModal) pwModal.classList.remove('open');
+});
+document.querySelectorAll('input[name="display-mode"]').forEach(el => {
+  el.addEventListener('change', (e) => {
+    if (e.target.checked) setDisplayMode(e.target.value);
   });
+});
 
-  document.getElementById('btn-gen-pw')?.addEventListener('click', () => {
-    pwDisplay.textContent = generarPassword();
-  });
-
-  applyStorageMode();
-  document.getElementById('btn-save-pw')?.addEventListener('click', async () => {
-    const newPassword = pwDisplay.textContent;
-    if (!newPassword || newPassword.length < 6) {
-      alert('La clave debe tener al menos 6 caracteres.');
-      return;
-    }
-    try {
-      await auth.changePassword(newPassword);
-      pwModal.classList.remove('open');
-      document.getElementById('modal-user').classList.remove('open');
-      store?.destroy();
-      localStorage.clear();
-      store = null;
-      showAuth();
-      alert('Clave cambiada. Inicia sesión con tu nueva clave.');
-    } catch (err) {
-      alert(err.message);
-    }
-  });
-
-  document.getElementById('btn-cancel-pw')?.addEventListener('click', () => {
-    pwModal.classList.remove('open');
-  });
-
-  document.getElementById('btn-forgot-send')?.addEventListener('click', async () => {
-    const email = forgotEmail.value.trim();
-    if (!email) {
-      forgotError.textContent = 'Ingresa tu email';
-      return;
-    }
-    forgotError.textContent = '';
-    const btn = document.getElementById('btn-forgot-send');
-    btn.disabled = true;
-    btn.textContent = 'Enviando...';
-    try {
-      const res = await fetch('/api/auth.php?action=forgot_password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (res.status === 429 && data.retry_after) {
-        let secs = data.retry_after;
-        forgotError.textContent = `Espera ${secs}s antes de reintentar`;
-        const iv = setInterval(() => {
-          secs--;
-          if (secs <= 0) {
-            clearInterval(iv);
-            forgotError.textContent = '';
-            btn.disabled = false;
-            btn.textContent = 'Enviar enlace';
-          } else {
-            forgotError.textContent = `Espera ${secs}s antes de reintentar`;
-          }
-        }, 1000);
-      } else {
-        forgotOk.classList.remove('hidden');
-        forgotEmail.value = '';
-        btn.disabled = false;
-        btn.textContent = 'Enviar enlace';
-      }
-    } catch {
-      forgotError.textContent = 'Error de conexión';
-      btn.disabled = false;
-      btn.textContent = 'Enviar enlace';
-    }
-  });
+function initAppRef() {
+  const app = {
+    store,
+    showAuth,
+    onAuthenticated,
+    resetApp,
+    initUserModalSettings,
+  };
+  initAuthUI(auth, app);
 }
 
 async function onAuthenticated() {
@@ -587,14 +412,12 @@ document.getElementById('btn-reset')?.addEventListener('click', async (e) => {
 window.addEventListener('auth-required', async () => {
   store?.destroy();
   store?.clear();
+  document.getElementById('detail-panel')?.classList.remove('open');
+  document.querySelectorAll('.modal-overlay.open').forEach(el => el.classList.remove('open'));
+  document.getElementById('tag-results')?.classList.add('hidden');
   await auth.logout();
   showAuth();
 });
-
-function escAttr(s) {
-  if (typeof s !== 'string') return '';
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 async function handleResetToken(token) {
   showResetPw();
@@ -678,12 +501,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resetToken = params.get('reset_token');
 
   if (resetToken) {
-    initAuth();
+    initAppRef();
     await handleResetToken(resetToken);
     return;
   }
 
-  initAuth();
+  initAppRef();
   const user = await auth.checkSession();
   if (user) {
     try {

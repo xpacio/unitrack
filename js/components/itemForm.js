@@ -1,4 +1,5 @@
 import { createItem } from '../store.js';
+import { esc, TYPE_LABELS } from '../helpers.js';
 
 export class ItemForm {
   constructor(store, onSave) {
@@ -28,18 +29,13 @@ export class ItemForm {
       this.currentId = data.id;
       this.currentType = data.type;
       this.parentId = data.parent_id || null;
-      this.title.textContent = `Editar ${this.typeLabel(data.type)}`;
+      this.title.textContent = `Editar ${TYPE_LABELS[data.type] || data.type}`;
     } else {
       this.currentId = null;
-      this.title.textContent = `Nuevo ${this.typeLabel(this.currentType)}`;
+      this.title.textContent = `Nuevo ${TYPE_LABELS[this.currentType] || this.currentType}`;
     }
     this.render(data);
     this.modal.classList.add('open');
-  }
-
-  typeLabel(t) {
-    const map = { task: 'Tarea', note: 'Nota', event: 'Evento', suscripcion: 'Suscripción', gasto: 'Gasto', ahorro: 'Ahorro', carpeta: 'Carpeta' };
-    return map[t] || t;
   }
 
   close() {
@@ -68,7 +64,7 @@ export class ItemForm {
       </div>
       <div class="panel-field">
         <label>Título</label>
-        <input id="f-title" type="text" value="${this.esc(item.title)}" placeholder="Título..." autofocus>
+        <input id="f-title" type="text" value="${esc(item.title)}" placeholder="Título..." autofocus>
       </div>
       <div class="panel-field" id="f-monto-group">
         <label>Monto</label>
@@ -107,17 +103,10 @@ export class ItemForm {
       </div>
       <div class="panel-field" id="f-productos-group">
         <label>Productos</label>
+        <div style="margin-bottom:6px;font-size:12px;color:var(--text-secondary);">Cada producto se guarda como gasto individual</div>
         <table class="fz-prod-table" id="f-prod-table">
           <thead><tr><th>Producto</th><th>Cant.</th><th>P.U.</th><th></th></tr></thead>
-          <tbody>
-            ${(item.productos || []).map(p => `
-              <tr class="fz-product-row">
-                <td><input class="fz-prod-nombre" type="text" value="${this.esc(p.nombre)}" placeholder="Producto" style="width:100%;"></td>
-                <td><input class="fz-prod-cantidad" type="number" min="1" value="${p.cantidad || 1}" style="width:60px;"></td>
-                <td><input class="fz-prod-precio" type="number" step="0.01" min="0" value="${p.precio_unitario || 0}" style="width:90px;"></td>
-                <td><button class="btn btn-danger fz-prod-remove" style="padding:2px 8px;font-size:12px;">×</button></td>
-              </tr>`).join('')}
-          </tbody>
+          <tbody></tbody>
         </table>
         <button class="btn btn-secondary" id="f-prod-add" style="font-size:12px;margin-top:4px;">+ Agregar producto</button>
       </div>
@@ -140,19 +129,16 @@ export class ItemForm {
       </div>
       <div class="panel-field">
         <label>Contenido (Markdown)</label>
-        <textarea id="f-content" rows="6" placeholder="Notas...">${this.esc(item.content || '')}</textarea>
+        <textarea id="f-content" rows="6" placeholder="Notas...">${esc(item.content || '')}</textarea>
       </div>
       <div class="panel-field">
         <label>Tags</label>
         <div class="tags-container" id="tags-container">
-          ${this.tags.map(t => `<span class="tag">${this.esc(t)}<button class="tag-remove" data-tag="${this.esc(t)}">×</button></span>`).join('')}
+          ${this.tags.map(t => `<span class="tag">${esc(t)}<button class="tag-remove" data-tag="${esc(t)}">×</button></span>`).join('')}
           <input class="tag-input" id="tag-input" type="text" placeholder="Agregar tag..." autocomplete="off">
         </div>
       </div>
-      <div class="panel-field">
-        <label>Padre (ID)</label>
-        <input id="f-parent" type="text" value="${item.parent_id || ''}" placeholder="ID del padre (opcional)">
-      </div>
+
     `;
 
     this.attachEvents();
@@ -248,7 +234,7 @@ export class ItemForm {
   renderTags(container) {
     const input = container.querySelector('.tag-input');
     const tags = this.tags.map(t =>
-      `<span class="tag">${this.esc(t)}<button class="tag-remove" data-tag="${this.esc(t)}">×</button></span>`
+      `<span class="tag">${esc(t)}<button class="tag-remove" data-tag="${esc(t)}">×</button></span>`
     ).join('');
     container.innerHTML = tags + `<input class="tag-input" id="tag-input" type="text" placeholder="Agregar tag..." autocomplete="off">`;
     container.querySelector('.tag-input').focus();
@@ -282,14 +268,14 @@ export class ItemForm {
     const selPri = this.body.querySelector('.priority-opt.selected');
     const priority = (type === 'note' || type === 'carpeta' || type === 'ahorro' || type === 'gasto') ? null : parseInt(selPri?.dataset.p || '2');
 
-    const productos = [];
+    const childrenData = [];
     if (type === 'gasto') {
       this.body.querySelectorAll('.fz-product-row').forEach(row => {
         const nombre = row.querySelector('.fz-prod-nombre')?.value.trim();
         const cantidad = parseFloat(row.querySelector('.fz-prod-cantidad')?.value) || 1;
         const precio = parseFloat(row.querySelector('.fz-prod-precio')?.value) || 0;
         if (nombre) {
-          productos.push({ nombre, cantidad, precio_unitario: precio });
+          childrenData.push({ nombre, cantidad, precio_unitario: precio });
         }
       });
     }
@@ -297,15 +283,15 @@ export class ItemForm {
     const montoUser = (type === 'suscripcion' || type === 'gasto' || type === 'ahorro')
       ? parseFloat(this.body.querySelector('#f-monto').value) || 0
       : 0;
-    const monto = (type === 'gasto' && productos.length > 0)
-      ? productos.reduce((s, p) => s + (p.cantidad * p.precio_unitario), 0)
+    const monto = (type === 'gasto' && childrenData.length > 0)
+      ? childrenData.reduce((s, p) => s + (p.cantidad * p.precio_unitario), 0)
       : montoUser;
 
-    const data = {
+    const base = {
       type,
       title,
       content: this.body.querySelector('#f-content').value,
-      parent_id: this.body.querySelector('#f-parent').value.trim() || null,
+      parent_id: this.parentId,
       tags: this.tags,
       priority,
       fecha_inicio: type === 'ahorro' ? '' : this.body.querySelector('#f-fecha-inicio').value,
@@ -315,24 +301,35 @@ export class ItemForm {
       periodicidad: type === 'suscripcion' ? this.body.querySelector('#f-periodicidad').value : null,
       meta: type === 'ahorro' ? parseFloat(this.body.querySelector('#f-meta').value) || 0 : 0,
       acumulado: type === 'ahorro' ? parseFloat(this.body.querySelector('#f-acumulado').value) || 0 : 0,
-      productos: type === 'gasto' ? productos : [],
     };
 
     if (this.currentId) {
       const existing = this.store.getById(this.currentId);
-      Object.assign(existing, data, { id: this.currentId });
+      Object.assign(existing, base, { id: this.currentId });
       this.store.update(existing);
     } else {
-      this.store.add(createItem(data));
+      const parent = createItem(base);
+      if (type === 'gasto' && childrenData.length > 0) {
+        const children = childrenData.map(c => createItem({
+          type: 'gasto',
+          title: c.nombre,
+          content: '',
+          monto: c.cantidad * c.precio_unitario,
+          cantidad: c.cantidad,
+          precio_unitario: c.precio_unitario,
+          parent_id: parent.id,
+          fecha_inicio: parent.fecha_inicio,
+          tags: parent.tags,
+          estado: 'pendiente',
+        }));
+        this.store.batchAdd([parent, ...children]);
+      } else {
+        this.store.add(parent);
+      }
     }
 
     this.close();
     if (this.onSave) this.onSave();
   }
 
-  esc(s) {
-    const div = document.createElement('div');
-    div.textContent = s;
-    return div.innerHTML;
-  }
 }

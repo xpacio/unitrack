@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { esc, renderMarkdown, PRIORITY_LABELS } from '../helpers.js';
+import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon } from '../helpers.js';
 import { TreeRenderer } from '../treeRenderer.js';
 
 export class TaskView {
@@ -63,7 +63,9 @@ export class TaskView {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </span>
         <div class="tree-row-body" data-id="${item.id}">
-          <span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>
+          ${item.type === 'task'
+            ? `<span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>`
+            : `<span class="tree-type-icon">${getTypeIcon(item.type)}</span>`}
           <span class="tree-title">${esc(item.title)}</span>
           ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
           ${tags}
@@ -71,6 +73,7 @@ export class TaskView {
         </div>
       </div>`;
   }
+}
 
   attachEvents() {
     const tree = this.container.querySelector('#task-tree');

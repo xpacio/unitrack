@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { todayLocalStr, parseLocalDate } from '../helpers.js';
+import { todayLocalStr, parseLocalDate, esc, renderMarkdown } from '../helpers.js';
 
 export class FinanzaView {
   constructor(store, form, onTagClick) {
@@ -14,19 +14,18 @@ export class FinanzaView {
   render() {
     const suscripciones = this.store.items.filter(i => i.type === 'suscripcion' && i.estado === 'activa')
       .sort((a, b) => (a.fecha_inicio || '').localeCompare(b.fecha_inicio || ''));
-    const gastos = this.store.items.filter(i => i.type === 'gasto')
-      .sort((a, b) => (b.fecha_inicio || '').localeCompare(a.fecha_inicio || ''));
     const ahorros = this.store.items.filter(i => i.type === 'ahorro');
     const totales = this.store.getTotalesMes();
+    const gastosCount = this.store.items.filter(i => i.type === 'gasto' && !this.store._isGastoChild(i)).length;
 
     let html = `<div class="fz-wrapper">`;
 
     html += this.renderResumen(totales);
     html += this.renderSuscripciones(suscripciones);
-    html += this.renderGastos(gastos);
+    html += this.renderGastos();
     html += this.renderAhorros(ahorros);
 
-    if (suscripciones.length === 0 && gastos.length === 0 && ahorros.length === 0) {
+    if (suscripciones.length === 0 && gastosCount === 0 && ahorros.length === 0) {
       html += this.emptyState();
     }
 
@@ -70,7 +69,7 @@ export class FinanzaView {
       html += `
         <div class="fz-row ${vencida ? 'vencida' : ''}" data-id="${item.id}">
           <div class="fz-row-body" data-id="${item.id}" style="cursor:pointer;flex:1;">
-            <div class="fz-row-title">${this.esc(item.title)}</div>
+            <div class="fz-row-title">${esc(item.title)}</div>
             <div class="fz-row-meta">
               <span class="fz-row-amount">$${this.fmt(item.monto)}/${item.periodicidad || '?'}</span>
               <span class="fz-row-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '—'} ${vencida ? '⏰ Vencida' : this.countdown(item.fecha_inicio)}</span>
@@ -83,30 +82,61 @@ export class FinanzaView {
     return html;
   }
 
-  renderGastos(items) {
-    if (items.length === 0) return '';
-    let html = `<div class="fz-section"><h3 class="fz-section-title">Gastos recientes</h3><div class="fz-list">`;
-    for (const item of items.slice(0, 20)) {
-      const pagado = item.estado === 'pagado';
-      const tags = item.tags?.length
-        ? item.tags.map(t => `<span class="fz-tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')
-        : '';
-      html += `
-        <div class="fz-row ${pagado ? 'pagado' : ''}" data-id="${item.id}">
-          <div class="fz-row-body" data-id="${item.id}" style="cursor:pointer;flex:1;">
-            <div class="fz-row-title">${pagado ? '✅ ' : ''}${this.esc(item.title)}</div>
-            <div class="fz-row-meta">
-              <span class="fz-row-amount">$${this.fmt(item.monto)}</span>
-              <span class="fz-row-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '—'}</span>
-              ${pagado ? '<span class="fz-badge pagado">Pagado</span>' : ''}
-              ${tags}
-            </div>
-          </div>
-          ${!pagado ? `<button class="btn btn-primary fz-pay-btn" data-id="${item.id}">✓ Pagar</button>` : ''}
-        </div>`;
+  renderGastos() {
+    const allGastos = this.store.items.filter(i => i.type === 'gasto');
+    const childrenByParent = new Map();
+    const roots = [];
+    for (const g of allGastos) {
+      const parent = this.store.getById(g.parent_id);
+      if (g.parent_id && parent?.type === 'gasto') {
+        if (!childrenByParent.has(g.parent_id)) childrenByParent.set(g.parent_id, []);
+        childrenByParent.get(g.parent_id).push(g);
+      } else {
+        roots.push(g);
+      }
+    }
+    roots.sort((a, b) => (b.fecha_inicio || '').localeCompare(a.fecha_inicio || ''));
+    for (const [, kids] of childrenByParent) {
+      kids.sort((a, b) => (b.fecha_inicio || '').localeCompare(a.fecha_inicio || ''));
+    }
+
+    let html = `<div class="fz-section"><h3 class="fz-section-title">Gastos recientes (${roots.length})</h3><div class="fz-list">`;
+    let count = 0;
+    for (const root of roots) {
+      if (count >= 20) break;
+      html += this._gastoRow(root, false);
+      count++;
+      const kids = childrenByParent.get(root.id) || [];
+      for (const kid of kids) {
+        if (count >= 20) break;
+        html += this._gastoRow(kid, true);
+        count++;
+      }
     }
     html += `</div></div>`;
     return html;
+  }
+
+  _gastoRow(item, indent) {
+    const pagado = item.estado === 'pagado';
+    const tags = item.tags?.length
+      ? item.tags.map(t => `<span class="fz-tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('')
+      : '';
+    const prefix = indent ? `<span style="color:var(--text-muted);margin-right:6px;">↳</span>` : '';
+    const marginLeft = indent ? 'margin-left:24px;' : '';
+    return `
+      <div class="fz-row ${pagado ? 'pagado' : ''}" data-id="${item.id}" style="${marginLeft}">
+        <div class="fz-row-body" data-id="${item.id}" style="cursor:pointer;flex:1;">
+          <div class="fz-row-title">${prefix}${pagado ? '✅ ' : ''}${esc(item.title)}</div>
+          <div class="fz-row-meta">
+            <span class="fz-row-amount">$${this.fmt(item.monto)}</span>
+            <span class="fz-row-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '—'}</span>
+            ${pagado ? '<span class="fz-badge pagado">Pagado</span>' : ''}
+            ${tags}
+          </div>
+        </div>
+        ${!pagado ? `<button class="btn btn-primary fz-pay-btn" data-id="${item.id}">✓ Pagar</button>` : ''}
+      </div>`;
   }
 
   renderAhorros(items) {
@@ -117,7 +147,7 @@ export class FinanzaView {
       html += `
         <div class="fz-row" data-id="${item.id}">
           <div class="fz-row-body" data-id="${item.id}" style="cursor:pointer;flex:1;">
-            <div class="fz-row-title">${this.esc(item.title)}</div>
+            <div class="fz-row-title">${esc(item.title)}</div>
             <div class="fz-row-meta" style="margin-bottom:4px;">
               <span class="fz-row-amount">$${this.fmt(item.acumulado || 0)} / $${this.fmt(item.meta)}</span>
               <span class="fz-row-date">${pct}%</span>
@@ -143,11 +173,21 @@ export class FinanzaView {
       const payBtn = e.target.closest('.fz-pay-btn');
       if (payBtn) {
         const item = this.store.getById(payBtn.dataset.id);
-        if (item && confirm(`¿Pagar ${this.esc(item.title)} - $${item.monto}?`)) {
+        if (!item) return;
+        const children = this.store.getChildren(item.id).filter(c => c.type === 'gasto' && c.estado !== 'pagado');
+        const msg = children.length > 0
+          ? `¿Pagar ${esc(item.title)} - $${this.fmt(item.monto)} (${children.length} producto${children.length > 1 ? 's' : ''} incluido${children.length > 1 ? 's' : ''})?`
+          : `¿Pagar ${esc(item.title)} - $${this.fmt(item.monto)}?`;
+        if (confirm(msg)) {
           if (item.type === 'gasto') {
             item.estado = 'pagado';
             item.updated = Date.now();
             this.store.update(item);
+            for (const child of children) {
+              child.estado = 'pagado';
+              child.updated = Date.now();
+              this.store.update(child);
+            }
           } else {
             this.store.paySubscription(item);
           }
@@ -165,9 +205,16 @@ export class FinanzaView {
 
     const panel = document.getElementById('detail-panel');
     panel.addEventListener('click', (e) => {
+      const tag = e.target.closest('.tag-clickable');
+      if (tag && this.onTagClick) {
+        this.onTagClick(tag.dataset.tag);
+        return;
+      }
+
       const btn = e.target.closest('button');
       if (!btn) return;
       const id = btn.id;
+
       const item = this._currentDetailItem;
       if (!item) return;
       const body = document.getElementById('panel-body');
@@ -228,38 +275,6 @@ export class FinanzaView {
         return;
       }
     });
-
-    document.getElementById('panel-body').addEventListener('click', (e) => {
-      const tag = e.target.closest('.tag-clickable');
-      if (tag && this.onTagClick) {
-        e.stopPropagation();
-        this.onTagClick(tag.dataset.tag);
-        return;
-      }
-
-      if (e.target.id === 'fz-prod-add') {
-        const tbody = document.querySelector('#fz-prod-table tbody');
-        if (!tbody) return;
-        const tr = document.createElement('tr');
-        tr.className = 'fz-product-row';
-        tr.innerHTML = `
-          <td><input class="fz-prod-nombre" type="text" placeholder="Producto" style="width:100%;"></td>
-          <td><input class="fz-prod-cantidad" type="number" min="1" value="1" style="width:60px;"></td>
-          <td><input class="fz-prod-precio" type="number" step="0.01" min="0" value="0" style="width:90px;"></td>
-          <td><button class="btn btn-danger fz-prod-remove" style="padding:2px 8px;font-size:12px;">×</button></td>
-        `;
-        tbody.appendChild(tr);
-        tr.querySelector('.fz-prod-nombre').focus();
-        return;
-      }
-
-      const removeBtn = e.target.closest('.fz-prod-remove');
-      if (removeBtn) {
-        const row = removeBtn.closest('.fz-product-row');
-        if (row) row.remove();
-        return;
-      }
-    });
   }
 
   _saveDetailEdit() {
@@ -282,10 +297,6 @@ export class FinanzaView {
     if (item.type === 'gasto') {
       item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
       item.estado = document.getElementById('fz-edit-estado')?.value || 'pendiente';
-      item.productos = this._gatherProductosFromEdit();
-      if (item.productos && item.productos.length > 0) {
-        item.monto = item.productos.reduce((sum, p) => sum + (p.cantidad * p.precio_unitario), 0);
-      }
     }
     if (item.type === 'ahorro') {
       item.meta = parseFloat(document.getElementById('fz-edit-meta')?.value) || 0;
@@ -294,20 +305,6 @@ export class FinanzaView {
 
     this.store.update(item);
     this.openDetail(item);
-  }
-
-  _gatherProductosFromEdit() {
-    const rows = document.querySelectorAll('.fz-product-row');
-    const productos = [];
-    for (const row of rows) {
-      const nombre = row.querySelector('.fz-prod-nombre')?.value.trim();
-      const cantidad = parseFloat(row.querySelector('.fz-prod-cantidad')?.value) || 1;
-      const precio = parseFloat(row.querySelector('.fz-prod-precio')?.value) || 0;
-      if (nombre) {
-        productos.push({ nombre, cantidad, precio_unitario: precio });
-      }
-    }
-    return productos;
   }
 
   openDetail(item) {
@@ -335,7 +332,7 @@ export class FinanzaView {
 
   renderDetail(item) {
     const tags = item.tags?.length
-      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${this.esc(t)}">${this.esc(t)}</span>`).join('')
+      ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('')
       : 'Sin tags';
 
     let extra = '';
@@ -349,11 +346,25 @@ export class FinanzaView {
         ${vencida ? `<div style="margin-top:12px;"><button class="btn btn-primary" id="fz-detail-pay" style="width:100%;">Pagar $${this.fmt(item.monto)}</button></div>` : ''}
       `;
     } else if (item.type === 'gasto') {
-      const prodHtml = this._renderProductosTable(item.productos);
+      const kids = (this.store.getChildren(item.id) || []).filter(c => c.type === 'gasto');
+      const childrenHtml = kids.length > 0 ? `
+        <div class="panel-field"><label>Productos</label>
+        <table class="fz-prod-table">
+          <thead><tr><th>Producto</th><th>Cant.</th><th>P.U.</th><th>Subtotal</th></tr></thead>
+          <tbody>${kids.map(k => {
+            const subtotal = (k.cantidad || 1) * (k.precio_unitario || 0);
+            return `<tr>
+              <td>${esc(k.title)}</td>
+              <td style="text-align:center;">${k.cantidad || 1}</td>
+              <td style="text-align:right;">$${this.fmt(k.precio_unitario || 0)}</td>
+              <td style="text-align:right;font-weight:600;">$${this.fmt(subtotal)}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>` : '';
       extra = `
         <div class="panel-field"><label>Monto</label><div style="font-weight:600;font-size:18px;">$${this.fmt(item.monto)}</div></div>
         <div class="panel-field"><label>Fecha</label><div class="panel-value-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</div></div>
-        ${prodHtml}
+        ${childrenHtml}
       `;
     } else if (item.type === 'ahorro') {
       const pct = item.meta > 0 ? Math.min(100, Math.round((item.acumulado || 0) / item.meta * 100)) : 0;
@@ -370,10 +381,10 @@ export class FinanzaView {
     }
 
     return `
-      <div class="panel-field"><label>Título</label><div class="panel-value-title">${this.esc(item.title)}</div></div>
+      <div class="panel-field"><label>Título</label><div class="panel-value-title">${esc(item.title)}</div></div>
       ${extra}
       <div class="panel-field"><label>Tags</label><div class="panel-value-tags">${tags}</div></div>
-      <div class="panel-field"><label>Notas</label><div class="markdown-preview">${this.renderMarkdown(item.content || '')}</div></div>
+      <div class="panel-field"><label>Notas</label><div class="markdown-preview">${renderMarkdown(item.content || '')}</div></div>
     `;
   }
 
@@ -406,17 +417,7 @@ export class FinanzaView {
         </div>`;
     }
     if (item.type === 'gasto') {
-      let prodRows = '';
-      const productos = item.productos || [];
-      for (let i = 0; i < productos.length; i++) {
-        const p = productos[i];
-        prodRows += `<tr class="fz-product-row">
-          <td><input class="fz-prod-nombre" type="text" value="${this.esc(p.nombre)}" placeholder="Producto" style="width:100%;"></td>
-          <td><input class="fz-prod-cantidad" type="number" min="1" value="${p.cantidad || 1}" style="width:60px;"></td>
-          <td><input class="fz-prod-precio" type="number" step="0.01" min="0" value="${p.precio_unitario || 0}" style="width:90px;"></td>
-          <td><button class="btn btn-danger fz-prod-remove" style="padding:2px 8px;font-size:12px;">×</button></td>
-        </tr>`;
-      }
+      const kids = (this.store.getChildren(item.id) || []).filter(c => c.type === 'gasto');
       extraFields += `
         <div class="panel-field"><label>Fecha</label><input id="fz-edit-fecha" type="date" value="${item.fecha_inicio || ''}"></div>
         <div class="panel-field"><label>Estado</label>
@@ -424,14 +425,10 @@ export class FinanzaView {
             <option value="pendiente" ${item.estado === 'pendiente' || !item.estado ? 'selected' : ''}>Pendiente</option>
             <option value="pagado" ${item.estado === 'pagado' ? 'selected' : ''}>Pagado</option>
           </select>
-        </div>
-        <div class="panel-field"><label>Productos</label>
-          <table class="fz-prod-table" id="fz-prod-table">
-            <thead><tr><th>Producto</th><th>Cant.</th><th>P.U.</th><th></th></tr></thead>
-            <tbody>${prodRows}</tbody>
-          </table>
-          <button class="btn btn-secondary" id="fz-prod-add" style="font-size:12px;margin-top:4px;">+ Agregar producto</button>
         </div>`;
+      if (kids.length > 0) {
+        extraFields += `<div class="panel-field"><label>Productos (${kids.length})</label><div style="font-size:12px;color:var(--text-secondary);">${kids.map(k => `${esc(k.title)} ($${this.fmt(k.monto)})`).join(', ')}</div></div>`;
+      }
     }
     if (item.type === 'ahorro') {
       extraFields += `
@@ -450,34 +447,14 @@ export class FinanzaView {
     }
 
     return `
-      <div class="panel-field"><label>Título</label><input id="fz-edit-title" type="text" value="${this.esc(item.title)}"></div>
+      <div class="panel-field"><label>Título</label><input id="fz-edit-title" type="text" value="${esc(item.title)}"></div>
       ${extraFields}
       <div class="panel-field"><label>Tags</label><input id="fz-edit-tags" type="text" value="${(item.tags || []).join(', ')}" placeholder="tag1, tag2, ..."></div>
       <div class="panel-field"><label>Notas</label>
         <button class="btn btn-secondary" id="fz-edit-md-help" style="font-size:11px;padding:3px 8px;margin-bottom:4px;">? MD</button>
-        <textarea id="fz-edit-content">${this.esc(item.content || '')}</textarea>
+        <textarea id="fz-edit-content">${esc(item.content || '')}</textarea>
       </div>
     `;
-  }
-
-  _renderProductosTable(productos) {
-    if (!productos || productos.length === 0) return '';
-    let rows = '';
-    for (const p of productos) {
-      const subtotal = (p.cantidad || 1) * (p.precio_unitario || 0);
-      rows += `<tr>
-        <td>${this.esc(p.nombre)}</td>
-        <td style="text-align:center;">${p.cantidad || 1}</td>
-        <td style="text-align:right;">$${this.fmt(p.precio_unitario || 0)}</td>
-        <td style="text-align:right;font-weight:600;">$${this.fmt(subtotal)}</td>
-      </tr>`;
-    }
-    return `
-      <div class="panel-field"><label>Productos</label>
-      <table class="fz-prod-table">
-        <thead><tr><th>Producto</th><th>Cant.</th><th>P.U.</th><th>Subtotal</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>`;
   }
 
   countdown(dateStr) {
@@ -493,27 +470,6 @@ export class FinanzaView {
     return `📅 En ${diff} días`;
   }
 
-  renderMarkdown(text) {
-    if (!text) return '<p style="color:var(--text-muted)"><em>Sin notas</em></p>';
-    return text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code>$1</code>')
-      .replace(/^\- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/^(?!<[hul])/gm, '<p>')
-      .replace(/$/gm, '</p>')
-      .replace(/<\/p>\n<p>/g, '</p><p>')
-      .replace(/<li><\/li>/g, '')
-      .replace(/<ul>\s*<\/ul>/g, '')
-      .replace(/<p><\/p>/g, '');
-  }
-
   fmt(n) {
     return Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -525,10 +481,4 @@ export class FinanzaView {
     </div>`;
   }
 
-  esc(s) {
-    if (typeof s !== 'string') return '';
-    const div = document.createElement('div');
-    div.textContent = s;
-    return div.innerHTML;
-  }
 }

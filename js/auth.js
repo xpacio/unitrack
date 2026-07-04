@@ -1,8 +1,13 @@
 export class Auth {
   constructor() {
     this.user = null;
+    this.csrfToken = '';
     this._listeners = [];
     this._authUrl = '/api/auth.php';
+  }
+
+  getCsrfToken() {
+    return this.csrfToken;
   }
 
   onAuthChange(callback) {
@@ -31,6 +36,7 @@ export class Auth {
       }
       const data = await res.json();
       this.user = data.user;
+      this.csrfToken = data.csrf_token || '';
       this._notify();
       return this.user;
     } catch {
@@ -50,6 +56,7 @@ export class Auth {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
     this.user = data.user;
+    this.csrfToken = data.csrf_token || '';
     this._notify();
     return this.user;
   }
@@ -64,6 +71,7 @@ export class Auth {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al registrar');
     this.user = data.user;
+    this.csrfToken = data.csrf_token || '';
     this._notify();
     return this.user;
   }
