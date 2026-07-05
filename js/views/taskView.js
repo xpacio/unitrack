@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon } from '../helpers.js';
+import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon, getCheckIcon } from '../helpers.js';
 import { TreeRenderer } from '../treeRenderer.js';
 
 export class TaskView {
@@ -61,7 +61,7 @@ export class TaskView {
       <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
         <div class="tree-row-body" data-id="${item.id}">
           ${item.type === 'task'
-            ? `<span class="tree-checkbox ${isCompleted ? 'checked' : ''}"></span>`
+            ? `<span class="tree-compliance-icon" data-action="toggle-done">${getCheckIcon(isCompleted)}</span>`
             : `<span class="tree-type-icon">${getTypeIcon(item.type)}</span>`}
           <span class="tree-title">${esc(item.title)}</span>
           ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
@@ -73,7 +73,6 @@ export class TaskView {
         </span>
       </div>`;
   }
-}
 
   attachEvents() {
     const tree = this.container.querySelector('#task-tree');
@@ -88,9 +87,9 @@ export class TaskView {
         return;
       }
 
-      const checkbox = e.target.closest('.tree-checkbox');
-      if (checkbox) {
-        const row = checkbox.closest('.tree-row');
+      const toggleDone = e.target.closest('[data-action="toggle-done"]');
+      if (toggleDone) {
+        const row = toggleDone.closest('.tree-row');
         if (row) {
           const item = this.store.getById(row.dataset.id);
           if (item && item.type === 'task') {
@@ -160,10 +159,9 @@ export class TaskView {
         <div class="panel-field"><label>Contenido (${children.length})</label>
           <div class="detail-children">
             ${children.map(c => {
-              const chkClass = c.type === 'task' && c.estado === 'completada' ? 'checked' : '';
               const icon = c.type === 'carpeta' ? '📁' : '';
               return `<div class="detail-child">
-                ${c.type === 'task' ? `<span class="tree-checkbox ${chkClass}"></span>` : ''}
+                ${c.type === 'task' ? `<span class="tree-compliance-icon" data-action="toggle-done">${getCheckIcon(c.estado === 'completada')}</span>` : ''}
                 <span class="child-link" data-id="${c.id}">${icon} ${esc(c.title)}</span>
                 ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
               </div>`;
@@ -228,8 +226,8 @@ export class TaskView {
         return;
       }
 
-      const detailChk = e.target.closest('.detail-child .tree-checkbox');
-      if (detailChk) {
+      const detailToggleDone = e.target.closest('[data-action="toggle-done"], .detail-child .tree-compliance-icon');
+      if (detailToggleDone) {
         const childLink = e.target.closest('.detail-child').querySelector('.child-link');
         if (childLink) {
           const childItem = this.store.getById(childLink.dataset.id);
@@ -303,11 +301,11 @@ export class TaskView {
 
     let estadoCheckbox = '';
     if (item.estado === 'completada') {
-      estadoCheckbox = '<span class="tree-checkbox checked" style="margin-right:4px;"></span>';
+      estadoCheckbox = `<span class="tree-compliance-icon" style="margin-right:4px;">${getCheckIcon(true)}</span>`;
     } else if (item.estado === 'en_curso') {
-      estadoCheckbox = '<span class="tree-checkbox partial" style="margin-right:4px;"></span>';
+      estadoCheckbox = `<span class="tree-compliance-icon" style="margin-right:4px;">${getCheckIcon(false)}</span>`;
     } else {
-      estadoCheckbox = '<span class="tree-checkbox" style="margin-right:4px;"></span>';
+      estadoCheckbox = `<span class="tree-compliance-icon" style="margin-right:4px;">${getCheckIcon(false)}</span>`;
     }
 
     const siblingsHtml = siblings.length > 0
@@ -319,11 +317,10 @@ export class TaskView {
          </div>
          <div class="collapsible">
          <div class="detail-children">
-           ${siblings.map(s => {
-             const chkClass = s.estado === 'completada' ? 'checked' : '';
-             return `<div class="detail-child">
-               <span class="tree-checkbox ${chkClass}"></span>
-               <span class="child-link" data-id="${s.id}">${esc(s.title)}</span>
+            ${siblings.map(s => {
+              return `<div class="detail-child">
+                <span class="tree-compliance-icon" data-action="toggle-done">${getCheckIcon(s.estado === 'completada')}</span>
+                <span class="child-link" data-id="${s.id}">${esc(s.title)}</span>
                ${s.priority ? `<span class="tree-badge p-${s.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][s.priority-1]}</span>` : ''}
              </div>`;
            }).join('')}
@@ -339,11 +336,10 @@ export class TaskView {
          </div>
          <div class="collapsible">
          <div class="detail-children">
-           ${children.map(c => {
-             const chkClass = c.estado === 'completada' ? 'checked' : '';
-             return `<div class="detail-child">
-               <span class="tree-checkbox ${chkClass}"></span>
-               <span class="child-link" data-id="${c.id}">${esc(c.title)}</span>
+            ${children.map(c => {
+              return `<div class="detail-child">
+                <span class="tree-compliance-icon" data-action="toggle-done">${getCheckIcon(c.estado === 'completada')}</span>
+                <span class="child-link" data-id="${c.id}">${esc(c.title)}</span>
                ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
              </div>`;
            }).join('')}

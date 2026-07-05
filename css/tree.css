@@ -54,49 +54,26 @@
 .tree-toggle.expanded { transform: rotate(90deg); }
 .tree-toggle.leaf { visibility: hidden; }
 
-.tree-checkbox {
-  width: 16px;
-  height: 16px;
+.tree-compliance-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  border: 2px solid var(--text-muted);
-  border-radius: 3px;
-  display: inline-block;
-  transition: all var(--transition);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color var(--transition), background var(--transition);
 }
-
-.tree-checkbox.checked {
-  background: var(--success);
-  border-color: var(--success);
-  position: relative;
+.tree-compliance-icon svg { width: 18px; height: 18px; }
+.tree-compliance-icon:active { transform: scale(0.9); }
+.tree-row:not(.completed) .tree-compliance-icon:hover {
+  background: var(--surface-hover);
 }
-
-.tree-checkbox.checked::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 5px;
-  height: 9px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-.tree-checkbox.partial {
-  border-color: var(--warning);
-  background: var(--warning);
-  position: relative;
-}
-
-.tree-checkbox.partial::after {
-  content: '';
-  position: absolute;
-  left: 3px;
-  top: 6px;
-  width: 8px;
-  height: 2px;
-  background: white;
-  border-radius: 1px;
+.tree-row.completed .tree-compliance-icon { color: var(--success); }
+.tree-row.completed .tree-compliance-icon:hover {
+  background: var(--success-light, #e8f5e9);
 }
 
 .tree-title {
