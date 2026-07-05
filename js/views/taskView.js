@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon, getCheckIcon } from '../helpers.js';
+import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon } from '../helpers.js';
 import { TreeRenderer } from '../treeRenderer.js';
 
 export class TaskView {
@@ -57,17 +57,21 @@ export class TaskView {
       ? item.tags.map(t => `<span class="tree-badge tag-clickable" data-tag="${esc(t)}" style="background:var(--primary-light);color:var(--primary);cursor:pointer;">${esc(t)}</span>`).join('')
       : '';
 
+    const childCount = hasChildren ? this.store.getChildren(item.id).length : 0;
+
     return `
       <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
         <div class="tree-row-body" data-id="${item.id}">
-          ${item.type === 'task'
-            ? `<span class="tree-compliance-icon" data-action="toggle-done">${getCheckIcon(isCompleted)}</span>`
-            : `<span class="tree-type-icon">${getTypeIcon(item.type)}</span>`}
+          <span class="tree-type-icon">${getTypeIcon(item.type)}</span>
           <span class="tree-title">${esc(item.title)}</span>
           ${item.priority ? `<span class="tree-badge p-${item.priority}">${priorityLabel[item.priority]}</span>` : ''}
           ${tags}
           ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
         </div>
+        ${childCount > 0 ? `<span class="tree-count-badge">${childCount}</span>` : ''}
+        <span class="tree-done-toggle${isCompleted ? ' completed' : ''}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+        </span>
         <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </span>
@@ -87,7 +91,7 @@ export class TaskView {
         return;
       }
 
-      const toggleDone = e.target.closest('[data-action="toggle-done"]');
+      const toggleDone = e.target.closest('.tree-done-toggle');
       if (toggleDone) {
         const row = toggleDone.closest('.tree-row');
         if (row) {
@@ -159,10 +163,9 @@ export class TaskView {
         <div class="panel-field"><label>Contenido (${children.length})</label>
           <div class="detail-children">
             ${children.map(c => {
-              const icon = c.type === 'carpeta' ? '📁' : '';
               return `<div class="detail-child">
-                ${c.type === 'task' ? `<span class="tree-compliance-icon" data-action="toggle-done">${getCheckIcon(c.estado === 'completada')}</span>` : ''}
-                <span class="child-link" data-id="${c.id}">${icon} ${esc(c.title)}</span>
+                <span class="tree-type-icon">${getTypeIcon(c.type)}</span>
+                <span class="child-link" data-id="${c.id}">${esc(c.title)}</span>
                 ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
               </div>`;
             }).join('')}
@@ -226,21 +229,6 @@ export class TaskView {
         return;
       }
 
-      const detailToggleDone = e.target.closest('[data-action="toggle-done"], .detail-child .tree-compliance-icon');
-      if (detailToggleDone) {
-        const childLink = e.target.closest('.detail-child').querySelector('.child-link');
-        if (childLink) {
-          const childItem = this.store.getById(childLink.dataset.id);
-          if (childItem) {
-            childItem.estado = childItem.estado === 'completada' ? 'pendiente' : 'completada';
-            childItem.updated = Date.now();
-            this.store.update(childItem);
-            this.openDetail(item);
-          }
-        }
-        return;
-      }
-
       const toggle = e.target.closest('.collapsible-toggle');
       if (toggle) {
         const collapsible = toggle.nextElementSibling;
@@ -299,14 +287,7 @@ export class TaskView {
       .filter(s => s.id !== item.id)
       .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
 
-    let estadoCheckbox = '';
-    if (item.estado === 'completada') {
-      estadoCheckbox = `<span class="tree-compliance-icon" style="margin-right:4px;">${getCheckIcon(true)}</span>`;
-    } else if (item.estado === 'en_curso') {
-      estadoCheckbox = `<span class="tree-compliance-icon" style="margin-right:4px;">${getCheckIcon(false)}</span>`;
-    } else {
-      estadoCheckbox = `<span class="tree-compliance-icon" style="margin-right:4px;">${getCheckIcon(false)}</span>`;
-    }
+    const estadoCheckbox = `<span class="tree-type-icon" style="margin-right:4px;">${getTypeIcon('task')}</span>`;
 
     const siblingsHtml = siblings.length > 0
       ? `<div class="panel-field">
@@ -319,7 +300,7 @@ export class TaskView {
          <div class="detail-children">
             ${siblings.map(s => {
               return `<div class="detail-child">
-                <span class="tree-compliance-icon" data-action="toggle-done">${getCheckIcon(s.estado === 'completada')}</span>
+                <span class="tree-type-icon">${getTypeIcon(s.type)}</span>
                 <span class="child-link" data-id="${s.id}">${esc(s.title)}</span>
                ${s.priority ? `<span class="tree-badge p-${s.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][s.priority-1]}</span>` : ''}
              </div>`;
@@ -338,7 +319,7 @@ export class TaskView {
          <div class="detail-children">
             ${children.map(c => {
               return `<div class="detail-child">
-                <span class="tree-compliance-icon" data-action="toggle-done">${getCheckIcon(c.estado === 'completada')}</span>
+                <span class="tree-type-icon">${getTypeIcon(c.type)}</span>
                 <span class="child-link" data-id="${c.id}">${esc(c.title)}</span>
                ${c.priority ? `<span class="tree-badge p-${c.priority}" style="margin-left:auto;">${['Alta','Media','Baja'][c.priority-1]}</span>` : ''}
              </div>`;

@@ -54,27 +54,21 @@
 .tree-toggle.expanded { transform: rotate(90deg); }
 .tree-toggle.leaf { visibility: hidden; }
 
-.tree-compliance-icon {
+.tree-done-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 50%;
+  border-radius: var(--radius);
   transition: color var(--transition), background var(--transition);
+  cursor: pointer;
 }
-.tree-compliance-icon svg { width: 18px; height: 18px; }
-.tree-compliance-icon:active { transform: scale(0.9); }
-.tree-row:not(.completed) .tree-compliance-icon:hover {
-  background: var(--surface-hover);
-}
-.tree-row.completed .tree-compliance-icon { color: var(--success); }
-.tree-row.completed .tree-compliance-icon:hover {
-  background: var(--success-light, #e8f5e9);
-}
+.tree-done-toggle:hover { background: var(--surface-hover); }
+.tree-done-toggle svg { width: 16px; height: 16px; }
+.tree-row.completed .tree-done-toggle { color: var(--success); }
 
 .tree-title {
   flex: 1;
