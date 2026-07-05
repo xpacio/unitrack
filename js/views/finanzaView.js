@@ -270,6 +270,19 @@ export class FinanzaView {
         return;
       }
 
+      if (id === 'fz-detail-rebuy') {
+        const clone = { ...item, id: crypto.randomUUID(), estado: 'pendiente', created: Date.now(), updated: Date.now() };
+        this.store.add(clone);
+        const kids = this.store.getChildren(item.id).filter(c => c.type === 'gasto');
+        for (const kid of kids) {
+          const kidClone = { ...kid, id: crypto.randomUUID(), estado: 'pendiente', parent_id: clone.id, created: Date.now(), updated: Date.now() };
+          this.store.add(kidClone);
+        }
+        panel.classList.remove('open');
+        this.render();
+        return;
+      }
+
       if (id === 'fz-edit-md-help') {
         document.getElementById('modal-md').classList.add('open');
         return;
@@ -365,6 +378,7 @@ export class FinanzaView {
         <div class="panel-field"><label>Monto</label><div style="font-weight:600;font-size:18px;">$${this.fmt(item.monto)}</div></div>
         <div class="panel-field"><label>Fecha</label><div class="panel-value-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</div></div>
         ${childrenHtml}
+        ${item.estado === 'pagado' ? `<div style="margin-top:12px;"><button class="btn btn-primary" id="fz-detail-rebuy" style="width:100%;">Recomprar $${this.fmt(item.monto)}</button></div>` : ''}
       `;
     } else if (item.type === 'ahorro') {
       const pct = item.meta > 0 ? Math.min(100, Math.round((item.acumulado || 0) / item.meta * 100)) : 0;

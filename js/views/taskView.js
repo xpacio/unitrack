@@ -94,6 +94,22 @@ export class TaskView {
         return;
       }
 
+      const toggleDone = e.target.closest('.tree-done-toggle');
+      if (toggleDone) {
+        const row = toggleDone.closest('.tree-row');
+        if (row) {
+          const item = this.store.getById(row.dataset.id);
+          if (item && item.type === 'task') {
+            const ciclo = { pendiente: 'en_curso', en_curso: 'completada', completada: 'pendiente' };
+            item.estado = ciclo[item.estado] || 'pendiente';
+            item.updated = Date.now();
+            this.store.update(item);
+            this.render();
+          }
+        }
+        return;
+      }
+
       const body = e.target.closest('.tree-row-body');
       if (!body) return;
       const row = body.closest('.tree-row');
