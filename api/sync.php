@@ -75,6 +75,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $deleteSql = "DELETE FROM items WHERE id = :id AND user_id = :user_id";
 
+    $stmt = $pdo->prepare($insertSql);
+    $fiStmt = $pdo->prepare($fiInsertSql);
+    $deleteStmt = $pdo->prepare($deleteSql);
+
     foreach ($body['items'] as $item) {
       if (isset($item['_delete']) && $item['_delete'] === true) {
         if (empty($item['id']) || !is_string($item['id'])) {
@@ -83,8 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           echo json_encode(['error' => 'Item con _delete tiene id inválido']);
           exit;
         }
-        $stmt = $pdo->prepare($deleteSql);
-        $stmt->execute(['id' => $item['id'], 'user_id' => $userId]);
+        $deleteStmt->execute(['id' => $item['id'], 'user_id' => $userId]);
       } else {
         $error = validateItem($item);
         if ($error !== null) {
@@ -111,7 +114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         if (in_array($item['type'] ?? '', $finanzaTypes, true)) {
-          $fiStmt = $pdo->prepare($fiInsertSql);
           $fiStmt->execute([
             'id' => $item['id'],
             'monto' => $item['monto'] ?? 0,
