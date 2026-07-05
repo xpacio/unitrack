@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon } from '../helpers.js';
+import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon, getFolderIcon } from '../helpers.js';
 import { TreeRenderer } from '../treeRenderer.js';
 
 export class TaskView {
@@ -37,7 +37,7 @@ export class TaskView {
         : '';
       return `
         <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
-          <span class="tree-folder-icon">📁</span>
+          <span class="tree-folder-icon">${getFolderIcon(isExpanded)}</span>
           <span class="tree-title">${esc(item.title)}</span>
           ${tags}
           <span class="tree-count-badge">${childCount}</span>
@@ -160,7 +160,7 @@ export class TaskView {
     title.textContent = esc(item.title);
 
     body.innerHTML = `
-      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">📁 ${esc(item.title)}</div></div>
+      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">${getTypeIcon('carpeta')} ${esc(item.title)}</div></div>
       <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${item.tags?.length ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('') : 'Sin tags'}</div></div>
       <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${renderMarkdown(item.content || '')}</div></div>
       ${children.length > 0 ? `
@@ -363,6 +363,7 @@ export class TaskView {
         </select>
       </div>
       <div class="panel-field"><label>Fechas</label><div style="display:flex;gap:8px;"><input id="task-edit-fi" type="date" value="${item.fecha_inicio || ''}" style="flex:1;"><input id="task-edit-ff" type="date" value="${item.fecha_fin || ''}" style="flex:1;"></div></div>
+      <div class="panel-field"><label>Tags</label><input id="task-edit-tags" type="text" value="${(item.tags || []).join(', ')}" placeholder="tag1, tag2, ..."></div>
       <div class="panel-field"><label>Contenido (Markdown)</label>
         <button class="btn btn-secondary" id="task-edit-md-help" style="font-size:11px;padding:3px 8px;margin-bottom:4px;">? MD</button>
         <textarea id="task-edit-content">${esc(item.content || '')}</textarea>
@@ -384,9 +385,12 @@ export class TaskView {
       item.estado = document.getElementById('task-edit-estado')?.value || item.estado;
       item.fecha_inicio = document.getElementById('task-edit-fi')?.value || '';
       item.fecha_fin = document.getElementById('task-edit-ff')?.value || '';
+      const tagsRaw = document.getElementById('task-edit-tags')?.value || '';
+      item.tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
       item.content = document.getElementById('task-edit-content')?.value || '';
       this.store.update(item);
       this.openDetail(item);
+      this.render();
     });
 
     document.getElementById('task-edit-cancel')?.addEventListener('click', () => {

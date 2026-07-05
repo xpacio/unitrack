@@ -316,30 +316,10 @@ window.matchMedia('(max-width: 640px)').addEventListener('change', (e) => {
 });
 
 function initUserModalSettings() {
-  const storageMode = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
-  const sm = document.querySelector('input[name="storage-mode"][value="' + storageMode + '"]');
-  if (sm) sm.checked = true;
-
   const savedMode = localStorage.getItem('unitrack_mode');
   const displayMode = savedMode === 'mobile' || savedMode === 'desktop' ? savedMode : 'auto';
   const dm = document.querySelector('input[name="display-mode"][value="' + displayMode + '"]');
   if (dm) dm.checked = true;
-}
-
-function setStorageMode(mode) {
-  localStorage.setItem('unitrack_storage_mode', mode);
-  if (store) {
-    store.setStorageMode(mode);
-    if (mode === 'online_first') {
-      store.sync().then(() => {
-        currentView?.render();
-        updateBrandStatus(store.getSyncStatus());
-      }).catch(() => {});
-    } else {
-      currentView?.render();
-      updateBrandStatus(store.getSyncStatus());
-    }
-  }
 }
 
 function setDisplayMode(mode) {
@@ -353,11 +333,6 @@ function setDisplayMode(mode) {
   }
 }
 
-document.querySelectorAll('input[name="storage-mode"]').forEach(el => {
-  el.addEventListener('change', (e) => {
-    if (e.target.checked) setStorageMode(e.target.value);
-  });
-});
 document.querySelectorAll('input[name="display-mode"]').forEach(el => {
   el.addEventListener('change', (e) => {
     if (e.target.checked) setDisplayMode(e.target.value);

@@ -40,14 +40,9 @@ export class Store {
     this._syncEngine = new SyncEngine({
       getCsrfToken: options.getCsrfToken || (() => ''),
     });
-    this._storageMode = localStorage.getItem('unitrack_storage_mode') || 'offline_first';
-    if (this._storageMode === 'online_first') {
-      this._pendingCount = 0;
-    } else {
-      this.load();
-      this._markAllDirty();
-      if (this.items.length === 0 && !options.noSeed) this.seed();
-    }
+    this.load();
+    this._markAllDirty();
+    if (this.items.length === 0 && !options.noSeed) this.seed();
     this.startAutoSync();
     this._initOnlineListeners();
   }
@@ -99,26 +94,11 @@ export class Store {
   }
 
   load() {
-    if (this._storageMode === 'online_first') return;
     this.items = this._persistence.load();
   }
 
   save() {
-    if (this._storageMode === 'online_first') return;
     this._persistence.save(this.items);
-  }
-
-  setStorageMode(mode) {
-    this._storageMode = mode;
-    localStorage.setItem('unitrack_storage_mode', mode);
-    if (mode === 'online_first') {
-      this.items = [];
-      this._pendingCount = 0;
-      this._persistence.clear();
-    } else {
-      this.load();
-    }
-    this._dispatchStatus();
   }
 
   clear() {
@@ -190,11 +170,7 @@ export class Store {
     this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
     this.save();
     this._dispatchStatus();
-    if (this._storageMode === 'online_first') {
-      this.sync().catch(() => {});
-    } else {
-      this.sync().catch(() => {});
-    }
+    this.sync().catch(() => {});
   }
 
   batchAdd(items) {
@@ -217,11 +193,7 @@ export class Store {
     this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
     this.save();
     this._dispatchStatus();
-    if (this._storageMode === 'online_first') {
-      this.sync().catch(() => {});
-    } else {
-      this.sync().catch(() => {});
-    }
+    this.sync().catch(() => {});
   }
 
   reparent(itemId, newParentId) {
@@ -257,11 +229,7 @@ export class Store {
     this._pendingCount = this._dirtyIds.size + this._pendingDeletes.length;
     this.save();
     this._dispatchStatus();
-    if (this._storageMode === 'online_first') {
-      this.sync().catch(() => {});
-    } else {
-      this.sync().catch(() => {});
-    }
+    this.sync().catch(() => {});
   }
 
   async sync() {

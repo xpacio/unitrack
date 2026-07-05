@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'register') {
   $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
   session_regenerate_id(true);
 
-  echo json_encode(['user' => ['id' => $userId, 'email' => $email, 'nombre' => $nombre]]);
+  echo json_encode(['user' => ['id' => $userId, 'email' => $email, 'nombre' => $nombre], 'csrf_token' => $_SESSION['csrf_token'] ?? '']);
   exit;
 }
 
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
   $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
   session_regenerate_id(true);
 
-  echo json_encode(['user' => ['id' => (int) $user['id'], 'email' => $user['email'], 'nombre' => $user['nombre']]]);
+  echo json_encode(['user' => ['id' => (int) $user['id'], 'email' => $user['email'], 'nombre' => $user['nombre']], 'csrf_token' => $_SESSION['csrf_token'] ?? '']);
   exit;
 }
 

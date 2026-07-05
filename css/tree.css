@@ -125,9 +125,15 @@
 }
 
 .tree-folder-icon {
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
+  color: var(--text-muted);
 }
+.tree-folder-icon svg { width: 24px; height: 24px; }
 
 .tree-type-icon {
   display: flex;

@@ -303,21 +303,40 @@ export class FinanzaView {
       item.monto = parseFloat(document.getElementById('fz-edit-monto')?.value) || 0;
     }
     if (item.type === 'suscripcion') {
+      const selPri = document.querySelector('#detail-panel .priority-opt.selected');
+      item.priority = parseInt(selPri?.dataset.p || '2');
       item.periodicidad = document.getElementById('fz-edit-periodicidad')?.value || 'mensual';
-      item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
+      item.fecha_inicio = document.getElementById('fz-edit-fi')?.value || '';
+      item.fecha_fin = document.getElementById('fz-edit-ff')?.value || '';
       item.estado = document.getElementById('fz-edit-estado')?.value || 'activa';
     }
     if (item.type === 'gasto') {
-      item.fecha_inicio = document.getElementById('fz-edit-fecha')?.value || '';
+      const selPri = document.querySelector('#detail-panel .priority-opt.selected');
+      item.priority = parseInt(selPri?.dataset.p || '2');
+      item.fecha_inicio = document.getElementById('fz-edit-fi')?.value || '';
+      item.fecha_fin = document.getElementById('fz-edit-ff')?.value || '';
       item.estado = document.getElementById('fz-edit-estado')?.value || 'pendiente';
+      item.cantidad = parseInt(document.getElementById('fz-edit-cantidad')?.value) || 1;
+      item.precio_unitario = parseFloat(document.getElementById('fz-edit-pu')?.value) || 0;
+      const kids = (this.store.getChildren(item.id) || []).filter(c => c.type === 'gasto');
+      if (kids.length > 0) {
+        const childrenTotal = kids.reduce((sum, k) => sum + (k.cantidad || 1) * (k.precio_unitario || 0), 0);
+        item.monto = childrenTotal + (item.cantidad || 1) * (item.precio_unitario || 0);
+      } else {
+        item.monto = (item.cantidad || 1) * (item.precio_unitario || 0) || item.monto;
+      }
     }
     if (item.type === 'ahorro') {
+      item.estado = document.getElementById('fz-edit-estado')?.value || 'activa';
+      item.fecha_inicio = document.getElementById('fz-edit-fi')?.value || '';
+      item.fecha_fin = document.getElementById('fz-edit-ff')?.value || '';
       item.meta = parseFloat(document.getElementById('fz-edit-meta')?.value) || 0;
       item.acumulado = parseFloat(document.getElementById('fz-edit-acumulado')?.value) || 0;
     }
 
     this.store.update(item);
     this.openDetail(item);
+    this.render();
   }
 
   openDetail(item) {
@@ -356,11 +375,17 @@ export class FinanzaView {
         <div class="panel-field"><label>Monto</label><div style="font-weight:600;font-size:18px;">$${this.fmt(item.monto)}</div></div>
         <div class="panel-field"><label>Periodicidad</label><div>${item.periodicidad === 'bimestral' ? 'Bimestral' : 'Mensual'}</div></div>
         <div class="panel-field"><label>Próximo pago</label><div style="color:${vencida ? 'var(--danger)' : 'var(--text-secondary)'};font-weight:${vencida ? '600' : '400'};">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'} ${vencida ? '⏰ Vencida' : ''}</div></div>
+        ${item.fecha_fin ? `<div class="panel-field"><label>Próximo fin</label><div>${parseLocalDate(item.fecha_fin).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div>` : ''}
+        ${item.priority ? `<div class="panel-field"><label>Prioridad</label><div>${['','🔴 Alta','🟡 Media','🟢 Baja'][item.priority] || '—'}</div></div>` : ''}
         ${vencida ? `<div style="margin-top:12px;"><button class="btn btn-primary" id="fz-detail-pay" style="width:100%;">Pagar $${this.fmt(item.monto)}</button></div>` : ''}
       `;
     } else if (item.type === 'gasto') {
       const kids = (this.store.getChildren(item.id) || []).filter(c => c.type === 'gasto');
-      const childrenHtml = kids.length > 0 ? `
+      const isParent = kids.length > 0;
+      const ownAmount = (item.cantidad || 1) * (item.precio_unitario || 0);
+      const childrenTotal = kids.reduce((sum, k) => sum + (k.cantidad || 1) * (k.precio_unitario || 0), 0);
+      const displayMonto = isParent ? childrenTotal + ownAmount : (ownAmount || item.monto);
+      const childrenHtml = isParent ? `
         <div class="panel-field"><label>Productos</label>
         <table class="fz-prod-table">
           <thead><tr><th>Producto</th><th>Cant.</th><th>P.U.</th><th>Subtotal</th></tr></thead>
@@ -375,14 +400,17 @@ export class FinanzaView {
           }).join('')}</tbody>
         </table></div>` : '';
       extra = `
-        <div class="panel-field"><label>Monto</label><div style="font-weight:600;font-size:18px;">$${this.fmt(item.monto)}</div></div>
+        <div class="panel-field"><label>Monto</label><div style="font-weight:600;font-size:18px;">$${this.fmt(displayMonto)}</div></div>
         <div class="panel-field"><label>Fecha</label><div class="panel-value-date">${item.fecha_inicio ? parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</div></div>
+        ${item.fecha_fin ? `<div class="panel-field"><label>Fecha fin</label><div class="panel-value-date">${parseLocalDate(item.fecha_fin).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div>` : ''}
+        <div class="panel-field"><label>Estado</label><div style="font-weight:600;color:${item.estado === 'pagado' ? 'var(--success)' : 'var(--text-secondary)'};">${item.estado === 'pagado' ? 'Pagado' : 'Pendiente'}</div></div>
         ${childrenHtml}
-        ${item.estado === 'pagado' ? `<div style="margin-top:12px;"><button class="btn btn-primary" id="fz-detail-rebuy" style="width:100%;">Recomprar $${this.fmt(item.monto)}</button></div>` : ''}
+        ${item.estado === 'pagado' ? `<div style="margin-top:12px;"><button class="btn btn-primary" id="fz-detail-rebuy" style="width:100%;">Recomprar $${this.fmt(displayMonto)}</button></div>` : ''}
       `;
     } else if (item.type === 'ahorro') {
       const pct = item.meta > 0 ? Math.min(100, Math.round((item.acumulado || 0) / item.meta * 100)) : 0;
       extra = `
+        <div class="panel-field"><label>Estado</label><div style="font-weight:600;color:${item.estado === 'completada' ? 'var(--success)' : 'var(--text-secondary)'};">${item.estado === 'completada' ? 'Completada' : 'Activa'}</div></div>
         <div class="panel-field"><label>Meta</label><div style="font-weight:600;font-size:18px;">$${this.fmt(item.meta)}</div></div>
         <div class="panel-field"><label>Acumulado</label><div style="font-weight:600;font-size:18px;color:var(--success);">$${this.fmt(item.acumulado || 0)}</div></div>
         <div class="panel-field"><label>Progreso</label>
@@ -391,6 +419,8 @@ export class FinanzaView {
             <span style="font-weight:600;font-size:14px;">${pct}%</span>
           </div>
         </div>
+        ${item.fecha_inicio ? `<div class="panel-field"><label>Inicio</label><div>${parseLocalDate(item.fecha_inicio).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div>` : ''}
+        ${item.fecha_fin ? `<div class="panel-field"><label>Fin</label><div>${parseLocalDate(item.fecha_fin).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</div></div>` : ''}
       `;
     }
 
@@ -415,13 +445,20 @@ export class FinanzaView {
     }
     if (item.type === 'suscripcion') {
       extraFields += `
+        <div class="panel-field"><label>Prioridad</label>
+          <div class="priority-group">
+            <button class="priority-opt p-1 ${item.priority === 1 ? 'selected' : ''}" data-p="1">🔴 Alta</button>
+            <button class="priority-opt p-2 ${item.priority === 2 ? 'selected' : ''}" data-p="2">🟡 Media</button>
+            <button class="priority-opt p-3 ${item.priority === 3 ? 'selected' : ''}" data-p="3">🟢 Baja</button>
+          </div>
+        </div>
         <div class="panel-field"><label>Periodicidad</label>
           <select id="fz-edit-periodicidad">
             <option value="mensual" ${item.periodicidad === 'mensual' ? 'selected' : ''}>Mensual</option>
             <option value="bimestral" ${item.periodicidad === 'bimestral' ? 'selected' : ''}>Bimestral</option>
           </select>
         </div>
-        <div class="panel-field"><label>Próximo pago</label><input id="fz-edit-fecha" type="date" value="${item.fecha_inicio || ''}"></div>
+        <div class="panel-field"><label>Fechas</label><div style="display:flex;gap:8px;"><input id="fz-edit-fi" type="date" value="${item.fecha_inicio || ''}" style="flex:1;" placeholder="Inicio"><input id="fz-edit-ff" type="date" value="${item.fecha_fin || ''}" style="flex:1;" placeholder="Fin"></div></div>
         <div class="panel-field"><label>Estado</label>
           <select id="fz-edit-estado">
             <option value="activa" ${item.estado === 'activa' ? 'selected' : ''}>Activa</option>
@@ -432,20 +469,46 @@ export class FinanzaView {
     }
     if (item.type === 'gasto') {
       const kids = (this.store.getChildren(item.id) || []).filter(c => c.type === 'gasto');
+      const isParent = kids.length > 0;
       extraFields += `
-        <div class="panel-field"><label>Fecha</label><input id="fz-edit-fecha" type="date" value="${item.fecha_inicio || ''}"></div>
+        <div class="panel-field"><label>Prioridad</label>
+          <div class="priority-group">
+            <button class="priority-opt p-1 ${item.priority === 1 ? 'selected' : ''}" data-p="1">🔴 Alta</button>
+            <button class="priority-opt p-2 ${item.priority === 2 ? 'selected' : ''}" data-p="2">🟡 Media</button>
+            <button class="priority-opt p-3 ${item.priority === 3 ? 'selected' : ''}" data-p="3">🟢 Baja</button>
+          </div>
+        </div>
+        <div class="panel-field"><label>Fechas</label><div style="display:flex;gap:8px;"><input id="fz-edit-fi" type="date" value="${item.fecha_inicio || ''}" style="flex:1;" placeholder="Inicio"><input id="fz-edit-ff" type="date" value="${item.fecha_fin || ''}" style="flex:1;" placeholder="Fin"></div></div>
         <div class="panel-field"><label>Estado</label>
           <select id="fz-edit-estado">
             <option value="pendiente" ${item.estado === 'pendiente' || !item.estado ? 'selected' : ''}>Pendiente</option>
             <option value="pagado" ${item.estado === 'pagado' ? 'selected' : ''}>Pagado</option>
           </select>
+        </div>
+        <div class="panel-field"><label>Cantidad</label><input id="fz-edit-cantidad" type="number" step="1" min="1" value="${item.cantidad || 1}" style="flex:1;"></div>
+        <div class="panel-field"><label>Precio unitario</label>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="font-size:16px;font-weight:600;color:var(--text-secondary);">$</span>
+            <input id="fz-edit-pu" type="number" step="0.01" min="0" value="${item.precio_unitario || 0}" style="flex:1;">
+          </div>
         </div>`;
-      if (kids.length > 0) {
-        extraFields += `<div class="panel-field"><label>Productos (${kids.length})</label><div style="font-size:12px;color:var(--text-secondary);">${kids.map(k => `${esc(k.title)} ($${this.fmt(k.monto)})`).join(', ')}</div></div>`;
+      if (isParent) {
+        const childrenTotal = kids.reduce((sum, k) => sum + (k.cantidad || 1) * (k.precio_unitario || 0), 0);
+        const ownTotal = (item.cantidad || 1) * (item.precio_unitario || 0);
+        const grandTotal = childrenTotal + ownTotal;
+        extraFields += `<div class="panel-field"><label>Productos (${kids.length})</label><div style="font-size:12px;color:var(--text-secondary);">${kids.map(k => `${esc(k.title)} ($${this.fmt((k.cantidad || 1) * (k.precio_unitario || 0))})`).join(', ')}</div></div>
+        <div class="panel-field"><label>Total calculado</label><div style="font-weight:700;font-size:16px;">$${this.fmt(grandTotal)}</div></div>`;
       }
     }
     if (item.type === 'ahorro') {
       extraFields += `
+        <div class="panel-field"><label>Estado</label>
+          <select id="fz-edit-estado">
+            <option value="activa" ${item.estado === 'activa' || !item.estado ? 'selected' : ''}>Activa</option>
+            <option value="completada" ${item.estado === 'completada' ? 'selected' : ''}>Completada</option>
+          </select>
+        </div>
+        <div class="panel-field"><label>Fechas</label><div style="display:flex;gap:8px;"><input id="fz-edit-fi" type="date" value="${item.fecha_inicio || ''}" style="flex:1;" placeholder="Inicio"><input id="fz-edit-ff" type="date" value="${item.fecha_fin || ''}" style="flex:1;" placeholder="Fin"></div></div>
         <div class="panel-field"><label>Meta</label>
           <div style="display:flex;align-items:center;gap:4px;">
             <span style="font-size:16px;font-weight:600;color:var(--text-secondary);">$</span>

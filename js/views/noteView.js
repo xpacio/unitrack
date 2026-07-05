@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { esc, renderMarkdown, getTypeIcon } from '../helpers.js';
+import { esc, renderMarkdown, getTypeIcon, getFolderIcon } from '../helpers.js';
 import { TreeRenderer } from '../treeRenderer.js';
 
 export class NoteView {
@@ -33,7 +33,7 @@ export class NoteView {
       return `
         <div class="tree-row folder" data-id="${item.id}" style="--tree-depth:${depth}">
           <div class="tree-row-body" data-id="${item.id}">
-            <span class="tree-folder-icon">📁</span>
+            <span class="tree-folder-icon">${getFolderIcon(isExpanded)}</span>
             <span class="tree-title">${esc(item.title)}</span>
             ${tags}
             <span class="tree-count-badge">${childCount}</span>
@@ -162,16 +162,16 @@ export class NoteView {
     const children = this.store.getChildren(item.id);
 
     body.innerHTML = `
-      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">📁 ${esc(item.title)}</div></div>
+      <div class="panel-field"><label>Título</label><div style="font-weight:600;font-size:16px;">${getTypeIcon('carpeta')} ${esc(item.title)}</div></div>
       <div class="panel-field"><label>Tags</label><div style="display:flex;gap:4px;flex-wrap:wrap;">${item.tags?.length ? item.tags.map(t => `<span class="tag tag-clickable" data-tag="${esc(t)}">${esc(t)}</span>`).join('') : 'Sin tags'}</div></div>
       <div class="panel-field"><label>Contenido</label><div class="markdown-preview">${renderMarkdown(item.content || '')}</div></div>
       ${children.length > 0 ? `
         <div class="panel-field"><label>Contenido (${children.length})</label>
           <div class="detail-children">
             ${children.map(c => {
-              const icon = c.type === 'carpeta' ? '📁' : '';
               return `<div class="detail-child">
-                <span class="child-link" data-id="${c.id}">${icon} ${esc(c.title)}</span>
+                <span class="tree-type-icon">${getTypeIcon(c.type)}</span>
+                <span class="child-link" data-id="${c.id}">${esc(c.title)}</span>
               </div>`;
             }).join('')}
           </div>

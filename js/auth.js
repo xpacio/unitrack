@@ -94,6 +94,7 @@ export class Auth {
     try {
       await fetch(`${this._authUrl}?action=logout`, {
         method: 'POST',
+        headers: { 'X-CSRF-Token': this.csrfToken },
         credentials: 'include',
       });
     } catch {
