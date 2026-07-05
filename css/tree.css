@@ -71,6 +71,10 @@
 .tree-done-toggle.estado-pendiente { color: var(--text-muted); }
 .tree-done-toggle.estado-en_curso { color: var(--success); }
 .tree-done-toggle.estado-completada { color: var(--success); }
+.tree-done-toggle.estado-pagado { color: var(--success); }
+.tree-done-toggle.estado-activa { color: var(--success); }
+.tree-done-toggle.estado-pausada { color: var(--warning); }
+.tree-done-toggle.estado-cancelada { color: var(--text-muted); }
 
 .tree-title {
   flex: 1;

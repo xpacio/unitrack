@@ -12,7 +12,7 @@ export function createItem(data = {}) {
     parent_id: data.parent_id || null,
     tags: data.tags || [],
     priority: data.priority ?? (type === 'note' || type === 'carpeta' ? null : type === 'ahorro' ? null : 2),
-    fecha_inicio: data.fecha_inicio || (data.type === 'gasto' ? todayLocalStr() : ''),
+    fecha_inicio: data.fecha_inicio || todayLocalStr(),
     fecha_fin: data.fecha_fin || '',
     estado: data.estado || (type === 'note' || type === 'carpeta' ? null : type === 'suscripcion' ? 'activa' : 'pendiente'),
     monto: data.monto ?? 0,

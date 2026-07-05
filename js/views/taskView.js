@@ -1,5 +1,5 @@
 import * as clipboard from '../clipboard.js';
-import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon, getFolderIcon } from '../helpers.js';
+import { esc, renderMarkdown, PRIORITY_LABELS, getTypeIcon, getFolderIcon, todayLocalStr } from '../helpers.js';
 import { TreeRenderer } from '../treeRenderer.js';
 
 export class TaskView {
@@ -47,10 +47,12 @@ export class TaskView {
         </div>`;
     }
 
-    const isCompleted = item.estado === 'completada';
-    const estadoIcon = item.estado === 'completada'
-      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12l5 5l10 -10"/><path d="M2 12l5 5m5 -5l5 -5"/></svg>'
-      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+    const _terminalEstados = ['completada', 'pagado', 'cancelada'];
+    const _noEstado = ['note', 'carpeta'];
+    const _hasEstado = !_noEstado.includes(item.type);
+    const _singleIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+    const _doneIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12l5 5l10 -10"/><path d="M2 12l5 5m5 -5l5 -5"/></svg>';
+    const estadoIcon = _terminalEstados.includes(item.estado) ? _doneIcon : _singleIcon;
     const priorityLabel = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
     const dateStr = item.fecha_inicio
       ? new Date(item.fecha_inicio).toLocaleDateString('es', { month: 'short', day: 'numeric' })
@@ -61,9 +63,10 @@ export class TaskView {
       : '';
 
     const childCount = hasChildren ? this.store.getChildren(item.id).length : 0;
+    const isTerminal = _terminalEstados.includes(item.estado);
 
     return `
-      <div class="tree-row ${isCompleted ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
+      <div class="tree-row ${isTerminal ? 'completed' : ''}" data-id="${item.id}" style="--tree-depth:${depth}">
         <div class="tree-row-body" data-id="${item.id}">
           <span class="tree-type-icon">${getTypeIcon(item.type)}</span>
           <span class="tree-title">${esc(item.title)}</span>
@@ -72,9 +75,7 @@ export class TaskView {
           ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
         </div>
         ${childCount > 0 ? `<span class="tree-count-badge">${childCount}</span>` : ''}
-        <span class="tree-done-toggle estado-${item.estado}">
-          ${estadoIcon}
-        </span>
+        ${_hasEstado ? `<span class="tree-done-toggle estado-${item.estado}">${estadoIcon}</span>` : ''}
         <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </span>
@@ -99,12 +100,31 @@ export class TaskView {
         const row = toggleDone.closest('.tree-row');
         if (row) {
           const item = this.store.getById(row.dataset.id);
-          if (item && item.type === 'task') {
-            const ciclo = { pendiente: 'en_curso', en_curso: 'completada', completada: 'pendiente' };
-            item.estado = ciclo[item.estado] || 'pendiente';
-            item.updated = Date.now();
-            this.store.update(item);
-            this.render();
+          if (item) {
+            const _ciclos = {
+              task: { pendiente: 'en_curso', en_curso: 'completada', completada: 'pendiente' },
+              event: { pendiente: 'en_curso', en_curso: 'completada', completada: 'pendiente' },
+              gasto: { pendiente: 'pagado', pagado: 'pendiente' },
+              suscripcion: { activa: 'pausada', pausada: 'cancelada', cancelada: 'activa' },
+              ahorro: { activa: 'completada', completada: 'activa' },
+            };
+            const _managesFf = ['gasto', 'suscripcion', 'ahorro'];
+            const _terminal = ['completada', 'pagado', 'cancelada'];
+            const ciclo = _ciclos[item.type];
+            if (ciclo) {
+              const oldEstado = item.estado;
+              item.estado = ciclo[item.estado] || Object.keys(ciclo)[0];
+              if (_managesFf.includes(item.type)) {
+                if (_terminal.includes(item.estado)) {
+                  item.fecha_fin = todayLocalStr();
+                } else if (_terminal.includes(oldEstado)) {
+                  item.fecha_fin = '';
+                }
+              }
+              item.updated = Date.now();
+              this.store.update(item);
+              this.render();
+            }
           }
         }
         return;
