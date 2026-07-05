@@ -50,7 +50,7 @@
 }
 
 .tree-toggle:hover { background: var(--surface-hover); }
-.tree-toggle svg { width: 16px; height: 16px; }
+.tree-toggle svg { width: 24px; height: 24px; }
 .tree-toggle.expanded { transform: rotate(90deg); }
 .tree-toggle.leaf { visibility: hidden; }
 
@@ -67,12 +67,11 @@
   cursor: pointer;
 }
 .tree-done-toggle:hover { background: var(--surface-hover); }
-.tree-done-toggle svg { width: 16px; height: 16px; }
+.tree-done-toggle svg { width: 24px; height: 24px; }
 .tree-row.completed .tree-done-toggle { color: var(--success); }
 
 .tree-title {
   flex: 1;
-  font-size: 14px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -132,12 +131,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   color: var(--text-muted);
 }
-.tree-type-icon svg { width: 16px; height: 16px; }
+.tree-type-icon svg { width: 24px; height: 24px; }
 
 .tree-count-badge {
   font-size: 11px;
