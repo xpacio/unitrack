@@ -68,7 +68,9 @@
 }
 .tree-done-toggle:hover { background: var(--surface-hover); }
 .tree-done-toggle svg { width: 24px; height: 24px; }
-.tree-row.completed .tree-done-toggle { color: var(--success); }
+.tree-done-toggle.estado-pendiente { color: var(--text-muted); }
+.tree-done-toggle.estado-en_curso { color: var(--success); }
+.tree-done-toggle.estado-completada { color: var(--success); }
 
 .tree-title {
   flex: 1;

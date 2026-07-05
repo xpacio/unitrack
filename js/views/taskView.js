@@ -48,6 +48,9 @@ export class TaskView {
     }
 
     const isCompleted = item.estado === 'completada';
+    const estadoIcon = item.estado === 'completada'
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12l5 5l10 -10"/><path d="M2 12l5 5m5 -5l5 -5"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
     const priorityLabel = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
     const dateStr = item.fecha_inicio
       ? new Date(item.fecha_inicio).toLocaleDateString('es', { month: 'short', day: 'numeric' })
@@ -69,8 +72,8 @@ export class TaskView {
           ${dateStr ? `<span class="tree-date">${dateStr}</span>` : ''}
         </div>
         ${childCount > 0 ? `<span class="tree-count-badge">${childCount}</span>` : ''}
-        <span class="tree-done-toggle${isCompleted ? ' completed' : ''}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+        <span class="tree-done-toggle estado-${item.estado}">
+          ${estadoIcon}
         </span>
         <span class="tree-toggle${isExpanded ? ' expanded' : ''}${!hasChildren ? ' leaf' : ''}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
@@ -88,21 +91,6 @@ export class TaskView {
       const tag = e.target.closest('.tag-clickable');
       if (tag && this.onTagClick) {
         this.onTagClick(tag.dataset.tag);
-        return;
-      }
-
-      const toggleDone = e.target.closest('.tree-done-toggle');
-      if (toggleDone) {
-        const row = toggleDone.closest('.tree-row');
-        if (row) {
-          const item = this.store.getById(row.dataset.id);
-          if (item && item.type === 'task') {
-            item.estado = item.estado === 'completada' ? 'pendiente' : 'completada';
-            item.updated = Date.now();
-            this.store.update(item);
-            this.render();
-          }
-        }
         return;
       }
 
